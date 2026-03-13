@@ -1,4 +1,4 @@
-# LimpaC
+<div align="center"><img src="https://github.com/LimpaC/LimpaC/blob/main/logo.png?raw=true" alt="Logo"></div>   
 
 ## Visão Geral
 
@@ -8,7 +8,7 @@ A proposta do projeto é apoiar empresas na visualização, de forma clara e obj
 
 ## Deck
 
-Apresentação completa do projeto: [LimpaC: Calculadora de Impacto Ambiental para Pagamentos](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
+Apresentação completa do projeto: [<div align="center"><img src="https://github.com/LimpaC/LimpaC/blob/main/deck.png?raw=true" alt="Clique para ver o deck"></div>](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
 
 ## Problemática
 
