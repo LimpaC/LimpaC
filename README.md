@@ -6,9 +6,13 @@ O **LimpaC** é uma calculadora de impacto ambiental para pagamentos corporativo
 
 A proposta do projeto é apoiar empresas na visualização, de forma clara e objetiva, dos ganhos ambientais gerados pela digitalização dos pagamentos. Com isso, o LimpaC busca transformar sustentabilidade em argumento de negócio, oferecendo dados que auxiliem decisões estratégicas, operacionais e de ESG.
 
+## Screencast Protótipo de Baixa
+
+[<div align="center"><img width="911" height="512" alt="video" src="https://github.com/user-attachments/assets/9c3e6c32-060d-49f4-ab86-285abad00757" /></div>](https://youtu.be/_msPTou2o_c)
+
 ## Deck
 
-Apresentação completa do projeto: [<div align="center"><img src="https://github.com/LimpaC/LimpaC/blob/main/deck.png?raw=true" alt="Clique para ver o deck"></div>](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
+[<div align="center"><img width="911" height="512" alt="deck" src="https://github.com/user-attachments/assets/c1d0011b-4324-42ee-bdc9-7768625066c7" /></div>](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
 
 ## Problemática
 
