@@ -29,7 +29,7 @@ A proposta do projeto é apoiar empresas na visualização, de forma clara e obj
 
 ## Deck
 
-[<div align="center"><img width="911" height="512" alt="deck" src="https://github.com/user-attachments/assets/c1d0011b-4324-42ee-bdc9-7768625066c7" /></div>](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
+[<a href="https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc" align="center"><img width="911" height="512" alt="deck" src="https://github.com/user-attachments/assets/c1d0011b-4324-42ee-bdc9-7768625066c7" /></a>](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
 
 ## Problemática
 
