@@ -10,73 +10,82 @@ import java.util.UUID;
 public class Calculation {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", updatable = false, nullable = false)
+    @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    //Totais de cartões fisicos
-    @Column(name = "total_physical_cards", nullable = false)
-    private Integer totalPhysicalCards;
+    private Double transactionVolume;
+    private Double savedCo2;
+    private Double savedPlastic;
+    private Double savedPaper;
+    private LocalDateTime dateCreate;
 
-    //Transações mensais
-    @Column(name = "monthly_transactions", nullable = false)
-    private Integer monthlyTransactions;
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    private  User manager;
 
-    //Periodo de meses (ex: 12 meses)
-    @Column(name = "period_months", nullable = false)
-    private Integer periodMonths;
-
-    //Percentual de energia renovável
-    @Column(name = "renewable_energy_percent", nullable = false)
-    private Integer renewableEnergyPercent;
-
-    //Distancia de entrega em KM
-    @Column(name = "avg_delivery_distance_km")
-    private Double avgDeliveryDistanceKm;
-
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    //Resultados
-    @OneToOne(mappedBy = "calculation", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private CalculationResult result;
-
-    @PrePersist
-    public void prePersist() {
-        this.createdAt = LocalDateTime.now();
+    public Calculation(UUID id, Double transactionVolume, Double savedCo2, Double savedPlastic, Double savedPaper, LocalDateTime dateCreate, User manager) {
+        this.id = id;
+        this.transactionVolume = transactionVolume;
+        this.savedCo2 = savedCo2;
+        this.savedPlastic = savedPlastic;
+        this.savedPaper = savedPaper;
+        this.dateCreate = dateCreate;
+        this.manager = manager;
     }
 
-    public Calculation() {}
-
-    public Calculation(Integer totalPhysicalCards, Integer monthlyTransactions,
-                       Integer periodMonths, Integer renewableEnergyPercent,
-                       Double avgDeliveryDistanceKm) {
-        this.totalPhysicalCards = totalPhysicalCards;
-        this.monthlyTransactions = monthlyTransactions;
-        this.periodMonths = periodMonths;
-        this.renewableEnergyPercent = renewableEnergyPercent;
-        this.avgDeliveryDistanceKm = avgDeliveryDistanceKm;
+    public UUID getId() {
+        return id;
     }
 
-    public UUID getId() { return id; }
+    public void setId(UUID id) {
+        this.id = id;
+    }
 
-    public Integer getTotalPhysicalCards() { return totalPhysicalCards; }
-    public void setTotalPhysicalCards(Integer v) { this.totalPhysicalCards = v; }
+    public Double getTransactionVolume() {
+        return transactionVolume;
+    }
 
-    public Integer getMonthlyTransactions() { return monthlyTransactions; }
-    public void setMonthlyTransactions(Integer v) { this.monthlyTransactions = v; }
+    public void setTransactionVolume(Double transactionVolume) {
+        this.transactionVolume = transactionVolume;
+    }
 
-    public Integer getPeriodMonths() { return periodMonths; }
-    public void setPeriodMonths(Integer v) { this.periodMonths = v; }
+    public Double getSavedCo2() {
+        return savedCo2;
+    }
 
-    public Integer getRenewableEnergyPercent() { return renewableEnergyPercent; }
-    public void setRenewableEnergyPercent(Integer v) { this.renewableEnergyPercent = v; }
+    public void setSavedCo2(Double savedCo2) {
+        this.savedCo2 = savedCo2;
+    }
 
-    public Double getAvgDeliveryDistanceKm() { return avgDeliveryDistanceKm; }
-    public void setAvgDeliveryDistanceKm(Double v) { this.avgDeliveryDistanceKm = v; }
+    public Double getSavedPlastic() {
+        return savedPlastic;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setSavedPlastic(Double savedPlastic) {
+        this.savedPlastic = savedPlastic;
+    }
 
-    public CalculationResult getResult() { return result; }
-    public void setResult(CalculationResult result) { this.result = result; }
+    public Double getSavedPaper() {
+        return savedPaper;
+    }
+
+    public void setSavedPaper(Double savedPaper) {
+        this.savedPaper = savedPaper;
+    }
+
+    public LocalDateTime getDateCreate() {
+        return dateCreate;
+    }
+
+    public void setDateCreate(LocalDateTime dateCreate) {
+        this.dateCreate = dateCreate;
+    }
+
+    public User getManager() {
+        return manager;
+    }
+
+    public void setManager(User manager) {
+        this.manager = manager;
+    }
 }
