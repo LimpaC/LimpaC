@@ -18,19 +18,24 @@ public class Calculation {
     private Double savedPlastic;
     private Double savedPaper;
     private LocalDateTime dateCreate;
+    private  Integer equivalentTrees;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
     private  User manager;
 
-    public Calculation(UUID id, Double transactionVolume, Double savedCo2, Double savedPlastic, Double savedPaper, LocalDateTime dateCreate, User manager) {
+    public Calculation(UUID id, Double transactionVolume, Double savedCo2, Double savedPlastic, Double savedPaper, LocalDateTime dateCreate, Integer equivalentTrees,User manager) {
         this.id = id;
         this.transactionVolume = transactionVolume;
         this.savedCo2 = savedCo2;
         this.savedPlastic = savedPlastic;
         this.savedPaper = savedPaper;
         this.dateCreate = dateCreate;
+        this.equivalentTrees = equivalentTrees;
         this.manager = manager;
+    }
+
+    public Calculation() {
     }
 
     public UUID getId() {
@@ -79,6 +84,14 @@ public class Calculation {
 
     public void setDateCreate(LocalDateTime dateCreate) {
         this.dateCreate = dateCreate;
+    }
+
+    public Integer getEquivalentTrees() {
+        return equivalentTrees;
+    }
+
+    public void setEquivalentTrees(Integer equivalentTrees) {
+        this.equivalentTrees = equivalentTrees;
     }
 
     public User getManager() {
