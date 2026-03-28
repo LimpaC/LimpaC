@@ -6,9 +6,11 @@ import com.limpac.backend.entity.Calculation;
 import com.limpac.backend.entity.User;
 import com.limpac.backend.repository.CalculationRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class CalculationService {
@@ -25,6 +27,7 @@ public class CalculationService {
         this.repository = repository;
     }
 
+    @Transactional
     public CalculationResponseDTO save(CalculationRequestDTO dto) {
 
         //Criar entidade
@@ -47,14 +50,18 @@ public class CalculationService {
         Calculation salvo = repository.save(entity);
 
         // Retornar o DTO de resposta
-        return converterParaDTO(salvo);
+        return convertToDTO(salvo);
     }
 
-    public List<Calculation> findAll() {
-        return repository.findAll();
+    @Transactional(readOnly = true)
+    public List<CalculationResponseDTO> findAll() {
+        //convertendo para DTO
+        return repository.findAll().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
-    public CalculationResponseDTO converterParaDTO(Calculation entity) {
+    public CalculationResponseDTO convertToDTO(Calculation entity) {
         return new CalculationResponseDTO(
                 entity.getId(),
                 entity.getTransactionVolume(),
