@@ -13,26 +13,40 @@ public class Calculation {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
-    private Double transactionVolume;
-    private Double savedCo2;
-    private Double savedPlastic;
-    private Double savedPaper;
-    private LocalDateTime dateCreate;
-    private  Integer equivalentTrees;
+    // CO2
+    private Double cardVolume;
+    private Double physicalCo2Generated;
+    private Double digitalCo2Generated;
+    private Double co2Saved;
+
+    // Material Metrics
+    private Double physicalPlasticGenerated;
+    private Double digitalPlasticGenerated;
+    private Double physicalPaperGenerated;
+    private Double digitalPaperGenerated;
+
+    // Visual Metric
+    private Integer treeEquivalents;
+
+    private LocalDateTime createdAt;
 
     @ManyToOne
     @JoinColumn(name = "user_id")
-    private  User manager;
+    private User manager;
 
-    public Calculation(UUID id, Double transactionVolume, Double savedCo2, Double savedPlastic, Double savedPaper, LocalDateTime dateCreate, Integer equivalentTrees,User manager) {
+    public Calculation(UUID id, Double cardVolume, Double physicalCo2Generated, Double digitalCo2Generated, Double co2Saved, Double physicalPlasticGenerated, Double digitalPlasticGenerated, Double physicalPaperGenerated, Double digitalPaperGenerated, Integer treeEquivalents, LocalDateTime createdAt) {
         this.id = id;
-        this.transactionVolume = transactionVolume;
-        this.savedCo2 = savedCo2;
-        this.savedPlastic = savedPlastic;
-        this.savedPaper = savedPaper;
-        this.dateCreate = dateCreate;
-        this.equivalentTrees = equivalentTrees;
-        this.manager = manager;
+        this.cardVolume = cardVolume;
+        this.physicalCo2Generated = physicalCo2Generated;
+        this.digitalCo2Generated = digitalCo2Generated;
+        this.co2Saved = co2Saved;
+        this.physicalPlasticGenerated = physicalPlasticGenerated;
+        this.digitalPlasticGenerated = digitalPlasticGenerated;
+        this.physicalPaperGenerated = physicalPaperGenerated;
+        this.digitalPaperGenerated = digitalPaperGenerated;
+        this.treeEquivalents = treeEquivalents;
+        this.createdAt = createdAt;
+        //this.manager = manager;
     }
 
     public Calculation() {
@@ -46,52 +60,84 @@ public class Calculation {
         this.id = id;
     }
 
-    public Double getTransactionVolume() {
-        return transactionVolume;
+    public Double getCardVolume() {
+        return cardVolume;
     }
 
-    public void setTransactionVolume(Double transactionVolume) {
-        this.transactionVolume = transactionVolume;
+    public void setCardVolume(Double cardVolume) {
+        this.cardVolume = cardVolume;
     }
 
-    public Double getSavedCo2() {
-        return savedCo2;
+    public Double getPhysicalCo2Generated() {
+        return physicalCo2Generated;
     }
 
-    public void setSavedCo2(Double savedCo2) {
-        this.savedCo2 = savedCo2;
+    public void setPhysicalCo2Generated(Double physicalCo2Generated) {
+        this.physicalCo2Generated = physicalCo2Generated;
     }
 
-    public Double getSavedPlastic() {
-        return savedPlastic;
+    public Double getDigitalCo2Generated() {
+        return digitalCo2Generated;
     }
 
-    public void setSavedPlastic(Double savedPlastic) {
-        this.savedPlastic = savedPlastic;
+    public void setDigitalCo2Generated(Double digitalCo2Generated) {
+        this.digitalCo2Generated = digitalCo2Generated;
     }
 
-    public Double getSavedPaper() {
-        return savedPaper;
+    public Double getCo2Saved() {
+        return co2Saved;
     }
 
-    public void setSavedPaper(Double savedPaper) {
-        this.savedPaper = savedPaper;
+    public void setCo2Saved(Double co2Saved) {
+        this.co2Saved = co2Saved;
     }
 
-    public LocalDateTime getDateCreate() {
-        return dateCreate;
+    public Double getPhysicalPlasticGenerated() {
+        return physicalPlasticGenerated;
     }
 
-    public void setDateCreate(LocalDateTime dateCreate) {
-        this.dateCreate = dateCreate;
+    public void setPhysicalPlasticGenerated(Double physicalPlasticGenerated) {
+        this.physicalPlasticGenerated = physicalPlasticGenerated;
     }
 
-    public Integer getEquivalentTrees() {
-        return equivalentTrees;
+    public Double getDigitalPlasticGenerated() {
+        return digitalPlasticGenerated;
     }
 
-    public void setEquivalentTrees(Integer equivalentTrees) {
-        this.equivalentTrees = equivalentTrees;
+    public void setDigitalPlasticGenerated(Double digitalPlasticGenerated) {
+        this.digitalPlasticGenerated = digitalPlasticGenerated;
+    }
+
+    public Double getPhysicalPaperGenerated() {
+        return physicalPaperGenerated;
+    }
+
+    public void setPhysicalPaperGenerated(Double physicalPaperGenerated) {
+        this.physicalPaperGenerated = physicalPaperGenerated;
+    }
+
+    public Double getDigitalPaperGenerated() {
+        return digitalPaperGenerated;
+    }
+
+    public void setDigitalPaperGenerated(Double digitalPaperGenerated) {
+        this.digitalPaperGenerated = digitalPaperGenerated;
+    }
+
+    public Integer getTreeEquivalents() {
+        return treeEquivalents;
+    }
+
+    public void setTreeEquivalents(Integer treeEquivalents) {
+        this.treeEquivalents = treeEquivalents;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 
     public User getManager() {
