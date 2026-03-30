@@ -17,11 +17,12 @@ public class CalculationService {
 
     private final CalculationRepository repository;
 
-    // Constantes de impacto por unidade de cartão físico
-    private static final double KG_CO2_POR_CARTAO = 0.155;
-    private static final double KG_PLASTICO_POR_CARTAO = 0.005;
-    private static final double KG_PAPEL_POR_KIT = 0.020;
-    private static final double CO2_PER_TREE = 163.0; // kg absorvidos em 20 anos
+    // Constantes de impacto por unidade de cartão físico e Digital
+    private static final double PHYSICAL_CO2_FACTOR = 0.155;
+    private static final double DIGITAL_CO2_FACTOR = 0.000003;
+    private static final double PHYSICAL_PLASTIC_FACTOR = 0.005;
+    private static final double PHYSICAL_PAPER_FACTOR = 0.020;
+    private static final double CO2_ABSORPTION_PER_TREE = 8.15;
 
     public CalculationService(CalculationRepository repository) {
         this.repository = repository;
@@ -34,25 +35,27 @@ public class CalculationService {
         Calculation entity = new Calculation();
         double volume = dto.volume();
 
-        entity.setTransactionVolume(volume);
-        entity.setSavedCo2(volume * KG_CO2_POR_CARTAO);
-        entity.setSavedPlastic(volume * KG_PLASTICO_POR_CARTAO);
-        entity.setSavedPaper(volume * KG_PAPEL_POR_KIT);
+        // Caalculos
+        entity.setCardVolume(volume);
+        entity.setPhysicalCo2Generated(volume * PHYSICAL_CO2_FACTOR);
+        entity.setDigitalCo2Generated(volume * DIGITAL_CO2_FACTOR);
+        entity.setCo2Saved(entity.getPhysicalCo2Generated() - entity.getDigitalCo2Generated());
 
-        // Conversão visual: Árvores necessárias para compensar o CO2 em 1 ano
-        int tree = (int) Math.ceil(entity.getSavedCo2() / CO2_PER_TREE);
-        entity.setEquivalentTrees(tree);
+        entity.setPhysicalPlasticGenerated(volume * PHYSICAL_PLASTIC_FACTOR);
+        entity.setDigitalPlasticGenerated(0.0);
 
-        //entity.setManager(gestor);
-        entity.setDateCreate(LocalDateTime.now());
+        entity.setPhysicalPaperGenerated(volume * PHYSICAL_PAPER_FACTOR);
+        entity.setDigitalPaperGenerated(0.0);
 
-        // Salvar no banco via Repository
-        Calculation salvo = repository.save(entity);
+        int trees = (int) Math.ceil(entity.getCo2Saved() / CO2_ABSORPTION_PER_TREE);
+        entity.setTreeEquivalents(trees);
 
-        // Retornar o DTO de resposta
-        return convertToDTO(salvo);
+        entity.setCreatedAt(LocalDateTime.now());
+        //entity.setManager();
+
+        Calculation saved = repository.save(entity);
+        return convertToDTO(saved);
     }
-
     @Transactional(readOnly = true)
     public List<CalculationResponseDTO> findAll() {
         //convertendo para DTO
@@ -64,13 +67,15 @@ public class CalculationService {
     public CalculationResponseDTO convertToDTO(Calculation entity) {
         return new CalculationResponseDTO(
                 entity.getId(),
-                entity.getTransactionVolume(),
-                entity.getSavedCo2(),
-                entity.getSavedPlastic(),
-                entity.getSavedPaper(),
-                entity.getEquivalentTrees(),
-                entity.getDateCreate()
-                //entity.getManager() != null ? entity.getManager().getFullName() : "Anónimo"
+                entity.getCardVolume(),
+                entity.getCo2Saved(),
+                entity.getPhysicalPlasticGenerated(), // 0
+                entity.getPhysicalPaperGenerated(),   //  0
+                entity.getPhysicalCo2Generated(),
+                entity.getDigitalCo2Generated(),
+                entity.getTreeEquivalents(),
+                entity.getCreatedAt()
+                //entity.getManager() != null ? entity.getManager().getFullName() : "Anonymous Simulation"
         );
     }
 }
