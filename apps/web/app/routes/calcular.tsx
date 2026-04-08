@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
@@ -13,31 +13,67 @@ import {
   HelpCircle,
 } from "lucide-react"
 
+type CalculationResult = {
+  id: string
+  cards: number
+  co2Impact: number
+  plasticSaved: number
+  treesPreserved: number
+  waterSaved: number
+  energySaved: number
+  sustainabilityGoal: number
+  maxGoal: number
+  progress: number
+  createdAt: string
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080"
+
 export default function Calcular() {
   const [cards, setCards] = useState<number>(350)
-  const [displayCards, setDisplayCards] = useState<number>(350)
+  const [result, setResult] = useState<CalculationResult | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const CO2_PER_CARD = 0.044
-  const PLASTIC_PER_CARD = 0.00714
-  const TREES_PER_CARD = 0.0342
-  const WATER_PER_CARD = 12.857
-  const ENERGY_PER_CARD = 0.514
+  const calculateImpact = async (cardAmount: number) => {
+    setIsLoading(true)
+    setError(null)
 
-  const co2Impact = (displayCards * CO2_PER_CARD).toFixed(1)
-  const plasticSaved = (displayCards * PLASTIC_PER_CARD).toFixed(1)
-  const treesPreserved = Math.round(displayCards * TREES_PER_CARD)
-  const waterSaved = Math.round(displayCards * WATER_PER_CARD).toLocaleString(
-    "pt-BR"
-  )
-  const energySaved = Math.round(displayCards * ENERGY_PER_CARD)
+    try {
+      const response = await fetch(`${API_BASE_URL}/calculation`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cards: cardAmount }),
+      })
 
-  const sustainabilityGoal = -8450
-  const maxGoal = -13000
-  const progress = (Math.abs(sustainabilityGoal) / Math.abs(maxGoal)) * 100
+      if (!response.ok) {
+        throw new Error("Nao foi possivel calcular o impacto ambiental.")
+      }
 
-  const handleUpdate = () => {
-    setDisplayCards(cards)
+      const data = (await response.json()) as CalculationResult
+      setResult(data)
+    } catch {
+      setError("Nao foi possivel conectar o front ao backend no momento.")
+    } finally {
+      setIsLoading(false)
+    }
   }
+
+  useEffect(() => {
+    void calculateImpact(cards)
+  }, [])
+
+  const displayedCards = result?.cards ?? cards
+  const co2Impact = result?.co2Impact.toFixed(1) ?? "0.0"
+  const plasticSaved = result?.plasticSaved.toFixed(1) ?? "0.0"
+  const treesPreserved = result?.treesPreserved ?? 0
+  const waterSaved = Math.round(result?.waterSaved ?? 0).toLocaleString("pt-BR")
+  const energySaved = Math.round(result?.energySaved ?? 0)
+  const sustainabilityGoal = result?.sustainabilityGoal ?? -8450
+  const maxGoal = result?.maxGoal ?? -13000
+  const progress = result?.progress ?? 0
 
   return (
     <div className="min-h-screen bg-slate-50/50 font-sans text-[#0f172a]">
@@ -111,11 +147,15 @@ export default function Calcular() {
                   </div>
                 </div>
                 <Button
-                  onClick={handleUpdate}
+                  onClick={() => void calculateImpact(cards)}
+                  disabled={isLoading}
                   className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600"
                 >
-                  Atualizar Economia
+                  {isLoading ? "Calculando..." : "Atualizar Economia"}
                 </Button>
+                {error ? (
+                  <p className="text-sm text-rose-500">{error}</p>
+                ) : null}
               </CardContent>
             </Card>
           </div>
@@ -196,7 +236,7 @@ export default function Calcular() {
                     </div>
                     <div className="space-y-0">
                       <p className="text-[32px] leading-none font-black text-[#0f172a]">
-                        {treesPreserved}
+                         {treesPreserved}
                       </p>
                       <p className="text-[11px] text-slate-400">
                         Árvores preservadas
@@ -214,7 +254,7 @@ export default function Calcular() {
                     </div>
                     <div className="space-y-0">
                       <p className="text-[32px] leading-none font-black text-[#0f172a]">
-                        {waterSaved}
+                         {waterSaved}
                       </p>
                       <p className="text-[11px] text-slate-400">
                         L economizados
@@ -232,7 +272,7 @@ export default function Calcular() {
                     </div>
                     <div className="space-y-0">
                       <p className="text-[32px] leading-none font-black text-[#0f172a]">
-                        {energySaved}
+                         {energySaved}
                       </p>
                       <p className="text-[11px] text-slate-400">kWh poupados</p>
                     </div>
@@ -279,6 +319,9 @@ export default function Calcular() {
             <Button className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600">
               Ver Relatório
             </Button>
+            <p className="text-right text-[11px] text-slate-400">
+              Baseado em {displayedCards.toLocaleString("pt-BR")} cartoes.
+            </p>
           </div>
         </div>
       </main>

@@ -5,77 +5,95 @@ import com.limpac.backend.dto.CalculationResponseDTO;
 import com.limpac.backend.entity.Calculation;
 import com.limpac.backend.entity.User;
 import com.limpac.backend.repository.CalculationRepository;
+import com.limpac.backend.repository.UserRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 public class CalculationService {
 
     private final CalculationRepository repository;
+    private final UserRepository userRepository;
 
-    // Constantes de impacto por unidade de cartão físico e Digital
-    private static final double PHYSICAL_CO2_FACTOR = 0.155;
-    private static final double DIGITAL_CO2_FACTOR = 0.000003;
-    private static final double PHYSICAL_PLASTIC_FACTOR = 0.005;
-    private static final double PHYSICAL_PAPER_FACTOR = 0.020;
-    private static final double CO2_ABSORPTION_PER_TREE = 8.15;
+    private static final double CO2_PER_CARD = 0.044;
+    private static final double PLASTIC_PER_CARD = 0.00714;
+    private static final double TREES_PER_CARD = 0.0342;
+    private static final double WATER_PER_CARD = 12.857;
+    private static final double ENERGY_PER_CARD = 0.514;
+    private static final double SUSTAINABILITY_GOAL = -8450;
+    private static final double MAX_GOAL = -13000;
 
-    public CalculationService(CalculationRepository repository) {
+    public CalculationService(CalculationRepository repository, UserRepository userRepository) {
         this.repository = repository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
     public CalculationResponseDTO save(CalculationRequestDTO dto) {
-
-        //Criar entidade
+        User manager = validateUserToken(dto.token());
         Calculation entity = new Calculation();
-        double volume = dto.volume();
+        double cards = dto.cards();
 
-        // Caalculos
-        entity.setCardVolume(volume);
-        entity.setPhysicalCo2Generated(volume * PHYSICAL_CO2_FACTOR);
-        entity.setDigitalCo2Generated(volume * DIGITAL_CO2_FACTOR);
-        entity.setCo2Saved(entity.getPhysicalCo2Generated() - entity.getDigitalCo2Generated());
+        entity.setCardVolume(cards);
+        entity.setPhysicalCo2Generated(cards * CO2_PER_CARD);
+        entity.setDigitalCo2Generated(0.0);
+        entity.setCo2Saved(entity.getPhysicalCo2Generated());
 
-        entity.setPhysicalPlasticGenerated(volume * PHYSICAL_PLASTIC_FACTOR);
+        entity.setPhysicalPlasticGenerated(cards * PLASTIC_PER_CARD);
         entity.setDigitalPlasticGenerated(0.0);
 
-        entity.setPhysicalPaperGenerated(volume * PHYSICAL_PAPER_FACTOR);
+        entity.setPhysicalPaperGenerated(0.0);
         entity.setDigitalPaperGenerated(0.0);
 
-        int trees = (int) Math.ceil(entity.getCo2Saved() / CO2_ABSORPTION_PER_TREE);
-        entity.setTreeEquivalents(trees);
+        entity.setTreeEquivalents((int) Math.round(cards * TREES_PER_CARD));
 
         entity.setCreatedAt(LocalDateTime.now());
-        //entity.setManager();
+        entity.setManager(manager);
 
         Calculation saved = repository.save(entity);
         return convertToDTO(saved);
     }
+
     @Transactional(readOnly = true)
-    public List<CalculationResponseDTO> findAll() {
-        //convertendo para DTO
-        return repository.findAll().stream()
+    public List<CalculationResponseDTO> findAll(UUID token) {
+        User manager = validateUserToken(token);
+
+        return repository.findAllByManager(manager).stream()
                 .map(this::convertToDTO)
-                .collect(Collectors.toList());
+                .toList();
+    }
+
+    private User validateUserToken(UUID token) {
+        if (token == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O token do usuário é obrigatório.");
+        }
+
+        return userRepository.findByToken(token)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token de usuário inválido."));
     }
 
     public CalculationResponseDTO convertToDTO(Calculation entity) {
+        double cards = entity.getCardVolume();
+        double progress = (Math.abs(SUSTAINABILITY_GOAL) / Math.abs(MAX_GOAL)) * 100;
+
         return new CalculationResponseDTO(
                 entity.getId(),
-                entity.getCardVolume(),
+                cards,
                 entity.getCo2Saved(),
-                entity.getPhysicalPlasticGenerated(), // 0
-                entity.getPhysicalPaperGenerated(),   //  0
-                entity.getPhysicalCo2Generated(),
-                entity.getDigitalCo2Generated(),
+                entity.getPhysicalPlasticGenerated(),
                 entity.getTreeEquivalents(),
+                cards * WATER_PER_CARD,
+                cards * ENERGY_PER_CARD,
+                SUSTAINABILITY_GOAL,
+                MAX_GOAL,
+                progress,
                 entity.getCreatedAt()
-                //entity.getManager() != null ? entity.getManager().getFullName() : "Anonymous Simulation"
         );
     }
 }
