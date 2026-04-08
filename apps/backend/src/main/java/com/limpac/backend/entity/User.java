@@ -32,6 +32,8 @@ public class User {
     @Column(name = "phone")
     private String phone;
 
+    private UUID token;
+
     public User(UUID id, String fullName, String cnpj, String email, String phone) {
         this.id = id;
         this.fullName = fullName;
