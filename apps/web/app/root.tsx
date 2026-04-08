@@ -6,6 +6,9 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
 } from "react-router"
+import { useEffect } from "react"
+import { useTokenStore } from "./lib/store"
+import { v4 as uuidv4 } from "uuid"
 
 import type { Route } from "./+types/root"
 import "./app.css"
@@ -29,6 +32,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  const { token, setToken } = useTokenStore()
+
+  useEffect(() => {
+    if (!token) {
+      setToken(uuidv4())
+    }
+  }, [token, setToken])
+
   return <Outlet />
 }
 
