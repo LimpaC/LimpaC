@@ -9,7 +9,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "user")
+@Table(name = "users")
 public class User {
 
     @Id
@@ -38,6 +38,9 @@ public class User {
         this.cnpj = cnpj;
         this.email = email;
         this.phone = phone;
+    }
+
+    public User() {
     }
 
     public UUID getId() {
