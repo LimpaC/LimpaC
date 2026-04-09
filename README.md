@@ -6,7 +6,7 @@
   <a href="https://www.figma.com/design/4uebWUmpnvo88yZsGB1xI1/Untitled?node-id=0-1&t=ICgm4eA6KKxJY1UW-1">
     <img src="https://github.com/user-attachments/assets/0ad22880-9d59-4b52-823f-6b70059d362f" width="36" alt="Figma link">
   </a>
-  <a href="https://trello.com/b/qJY5E5GE/projeto-3">
+  <a href="https://tree.taiga.io/project/jggrimaldi-limpac/timeline">
     <img width="60" alt="taiga_logo_transparent2" src="https://github.com/user-attachments/assets/832893f8-fda4-4492-9dc6-066b7d30da1a" />
   </a>
 </div>
