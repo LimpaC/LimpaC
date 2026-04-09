@@ -3,7 +3,6 @@ package com.limpac.backend.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -85,7 +84,6 @@ public class User {
         this.phone = phone;
     }
 
-<<<<<<< HEAD
     public UUID getToken() {
         return token;
     }
@@ -94,8 +92,6 @@ public class User {
         this.token = token;
     }
 
-=======
->>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

@@ -9,10 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-<<<<<<< HEAD
 import java.util.UUID;
-=======
->>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
 
 @RestController
 @RequestMapping("/calculation")
@@ -31,13 +28,8 @@ public class CalculationController {
     }
 
     @GetMapping("/history")
-<<<<<<< HEAD
     public ResponseEntity<List<CalculationResponseDTO>> findAll(@RequestParam UUID token) {
         List<CalculationResponseDTO> response = service.findAll(token);
-=======
-    public ResponseEntity<List<CalculationResponseDTO>> findAll() {
-        List<CalculationResponseDTO> response = service.findAll();
->>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
 
         if (response.isEmpty()) {
             return ResponseEntity.noContent().build();

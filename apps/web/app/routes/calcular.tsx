@@ -12,6 +12,7 @@ import {
   Zap,
   HelpCircle,
 } from "lucide-react"
+import { useTokenStore } from "~/lib/store"
 
 type CalculationResult = {
   id: string
@@ -30,12 +31,18 @@ const MAX_GOAL = -13000
 const PROGRESS = (Math.abs(SUSTAINABILITY_GOAL) / Math.abs(MAX_GOAL)) * 100
 
 export default function Calcular() {
+  const token = useTokenStore((state) => state.token)
   const [cards, setCards] = useState<number>(350)
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const calculateImpact = async (cardAmount: number) => {
+    if (!token) {
+      setError("Token do dispositivo ainda nao foi inicializado.")
+      return
+    }
+
     setIsLoading(true)
     setError(null)
 
@@ -45,7 +52,7 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ cards: cardAmount }),
+        body: JSON.stringify({ cards: cardAmount, token }),
       })
 
       if (!response.ok) {
@@ -62,8 +69,10 @@ export default function Calcular() {
   }
 
   useEffect(() => {
-    void calculateImpact(cards)
-  }, [])
+    if (token) {
+      void calculateImpact(cards)
+    }
+  }, [token])
 
   const displayedCards = result?.cards ?? cards
   const co2Impact = result?.co2Impact.toFixed(1) ?? "0.0"
