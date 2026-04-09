@@ -89,8 +89,8 @@ Projeto desenvolvido na disciplina **Projeto 3 – Sistemas de Informação**, d
 
 - **Bernardo Pedrosa** — Desenvolvedor
 - **Leandro Langlois** — Desenvolvedor
-- **João Guilherme da Fonte** — Product Owner
-- **Guilherme Agra** — Desenvolvedor
+- **João Guilherme da Fonte** — Desenvolvedor
+- **Guilherme Agra** — Product Owner
 - **Guiliano Minelli** — Desenvolvedor
 - **Davi Nogueira** — Scrum Master
 - **Paulo Henrique** — Desenvolvedor
