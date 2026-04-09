@@ -7,9 +7,10 @@
     <img src="https://github.com/user-attachments/assets/0ad22880-9d59-4b52-823f-6b70059d362f" width="36" alt="Figma link">
   </a>
   <a href="https://trello.com/b/qJY5E5GE/projeto-3">
-    <img width="52" alt="image" src="https://github.com/user-attachments/assets/f655760f-523e-49dc-b60d-53bb5af6f802" alt="Trello" />
+    <img width="60" alt="taiga_logo_transparent2" src="https://github.com/user-attachments/assets/832893f8-fda4-4492-9dc6-066b7d30da1a" />
   </a>
 </div>
+
 
 ## Entregas
 <details>
@@ -18,6 +19,13 @@
 - **Figma**: <https://www.figma.com/design/4uebWUmpnvo88yZsGB1xI1/Untitled?node-id=0-1&t=ICgm4eA6KKxJY1UW-1>
 - **Screencast**: <https://youtu.be/_msPTou2o_c>
 - **Trello**: <https://trello.com/b/qJY5E5GE/projeto-3>
+</details>
+
+<details>
+<summary>Entrega 02</summary>
+
+- **Screencast**: <https://youtu.be/D09MaArZBA8>
+- **Taiga**: <https://tree.taiga.io/project/jggrimaldi-limpac/timeline>
 </details>
 
 
