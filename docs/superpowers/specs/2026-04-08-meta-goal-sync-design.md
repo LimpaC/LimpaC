@@ -40,9 +40,15 @@ Add `Goal` as a separate entity linked 1:1 to user identity.
 Fields:
 
 - `id` (UUID)
-- `targetCo2e` (double, negative values allowed)
-- `updatedAt` (timestamp)
+- `targetCo2e` (`Integer`, positive reduction magnitude in kg CO2e)
+- `updatedAt` (timestamp as `LocalDateTime`)
 - `manager` (`User`, unique relation)
+
+Canonical value conventions:
+
+- All persisted and calculated CO2 values are positive magnitudes.
+- Goal in UI and API is positive magnitude (`9000` means target of reducing 9000 kg CO2e).
+- Existing hardcoded negative constants in frontend are removed.
 
 Rationale:
 
@@ -57,10 +63,21 @@ Add a single source endpoint to bootstrap the page:
 
 Response:
 
-- `goal`: persisted target and metadata
+- `goal`: persisted target and metadata (always present)
 - `latestCalculation`: latest snapshot or `null`
 - `hasHistory`: boolean
 - `progressPct`: computed against latest impact and current goal
+
+Goal bootstrap behavior:
+
+- If user has no goal row yet, backend creates one with default `targetCo2e = 13000` and returns it.
+- This keeps `goal` non-null and avoids frontend branching for goal existence.
+
+Progress formula:
+
+- `progressPct = clamp((latestCalculation.co2Impact / goal.targetCo2e) * 100, 0, 100)`
+- if `latestCalculation` is `null`, progress is `0`
+- if `goal.targetCo2e <= 0`, request is invalid and goal write must be rejected
 
 Rationale:
 
@@ -74,12 +91,18 @@ Rationale:
 Body:
 
 - `token`
-- `targetCo2e`
+- `targetCo2e` (`Integer`)
 
 Behavior:
 
 - Upsert goal for token owner.
 - Return normalized goal payload.
+
+Validation:
+
+- Range: `100` to `13000`
+- Step: `50`
+- Values outside range return `422`
 
 ### 4) Calculation increment API
 
@@ -90,15 +113,20 @@ Add increment endpoint for the existing-data flow:
 Body:
 
 - `token`
-- `addCards`
+- `addCards` (`Integer`)
 
 Behavior:
 
 - Resolve token owner.
-- Read latest calculation.
+- Read latest calculation under write lock.
 - Compute new absolute cards as `latest.cards + addCards`.
 - Create new calculation snapshot.
 - Return normalized dashboard state payload.
+
+Concurrency strategy:
+
+- Increment runs in one transaction and locks the user row (`PESSIMISTIC_WRITE`) before reading latest calculation.
+- This serializes concurrent increments per user and avoids lost updates.
 
 Rationale:
 
@@ -116,7 +144,7 @@ Rationale:
 
 ### Goal modal behavior
 
-- Slider range should represent allowed target range for CO2e goals.
+- Slider range is fixed to backend contract: min `100`, max `13000`, step `50`.
 - Show selected value preview in modal.
 - On save:
   1. call `PUT /goal`
@@ -131,6 +159,11 @@ On token ready:
 2. set local states from response
 3. do not auto-create a new calculation on load
 
+Loading source of truth:
+
+- Page render values for cards, impacts, goal, and progress come from latest backend state.
+- Local defaults are only temporary placeholders before state response.
+
 ### Cards section behavior
 
 - Branch by `hasHistory` from backend:
@@ -141,17 +174,31 @@ On token ready:
     - modal with numeric field `Quantidade a adicionar`
     - submit to `POST /calculation/increment`
 
+Cards type:
+
+- Frontend only accepts integer card quantities.
+- Existing backend `Double cards` field remains for compatibility, but frontend sends whole numbers.
+- `addCards` is strictly integer and must be `>= 1`.
+
 ### Economia update behavior
 
 After any calculation write (`POST /calculation` or `/calculation/increment`):
 
-- use normalized response (or immediately refetch `GET /dashboard/state`)
+- use non-optimistic update flow:
+  1. perform write request
+  2. on success, fetch `GET /dashboard/state`
+  3. commit state in UI only from state response
 - update:
   - cards base
   - impact values
   - goal value
   - progress
 - ensure displayed meta always matches backend persisted goal.
+
+Failure handling:
+
+- if write fails: keep previous state and show error
+- if write succeeds but state refetch fails: keep previous state, show sync error, and retry on next user action
 
 ### UI component additions
 
@@ -188,6 +235,7 @@ Add missing shadcn components in `apps/web/app/components/ui/`:
 - goal upsert is idempotent by owner.
 - increment rejects non-positive adds.
 - state endpoint always returns current goal and latest calculation in the same payload.
+- latest calculation lookup and increment math must use `user_id` relation and transaction lock.
 
 ## DTO contracts
 
@@ -196,7 +244,7 @@ Add missing shadcn components in `apps/web/app/components/ui/`:
 ```json
 {
   "token": "uuid",
-  "targetCo2e": -9000
+  "targetCo2e": 9000
 }
 ```
 
@@ -205,18 +253,18 @@ Add missing shadcn components in `apps/web/app/components/ui/`:
 ```json
 {
   "goal": {
-    "targetCo2e": -9000,
-    "updatedAt": "2026-04-08T12:00:00Z"
+    "targetCo2e": 9000,
+    "updatedAt": "2026-04-08T12:00:00"
   },
   "latestCalculation": {
     "id": "uuid",
     "cards": 500,
-    "co2Impact": -8450.0,
+    "co2Impact": 8450.0,
     "plasticSaved": 123.4,
     "treesPreserved": 10,
     "waterSaved": 4567.0,
     "energySaved": 890.0,
-    "createdAt": "2026-04-08T12:10:00Z"
+    "createdAt": "2026-04-08T12:10:00"
   },
   "hasHistory": true,
   "progressPct": 93.89
@@ -234,7 +282,11 @@ Add missing shadcn components in `apps/web/app/components/ui/`:
 
 ### Calculation write response
 
-Use the same normalized shape as `GET /dashboard/state` to keep frontend simpler.
+Compatibility decision:
+
+- Keep current `POST /calculation` response contract (`CalculationResponseDTO`) unchanged.
+- Use `GET /dashboard/state` as the single normalized read model after every successful write.
+- `POST /calculation/increment` may return either current DTO or normalized state; frontend still refetches `GET /dashboard/state` immediately after success.
 
 ## Validation and error behavior
 
@@ -244,6 +296,7 @@ Use the same normalized shape as `GET /dashboard/state` to keep frontend simpler
 - `422` for invalid domain values:
   - `targetCo2e` out of allowed range
   - `addCards <= 0`
+  - non-integer `addCards`
 
 Frontend should show existing error area in the card for failed writes and keep last known valid state.
 
@@ -254,8 +307,28 @@ Current backend uses `spring.jpa.hibernate.ddl-auto=update`.
 Target:
 
 - Add schema for `goal` table and unique FK to `users`.
-- Add index for latest calculation lookup (`manager_id`, `created_at desc`).
+- Add index for latest calculation lookup (`user_id`, `created_at desc`).
 - Keep existing calculation history data unchanged.
+
+## Test plan
+
+### Backend
+
+1. Goal upsert creates row on first write and updates same row on second write.
+2. `GET /dashboard/state` for first-time user returns default goal, `latestCalculation = null`, `hasHistory = false`, `progressPct = 0`.
+3. Increment happy path adds cards from latest snapshot and returns updated state data after refetch.
+4. Increment rejects `addCards <= 0` and non-integer values.
+5. Invalid token returns `401` consistently for goal/state/increment endpoints.
+6. Two concurrent increments for same token are serialized and final cards total includes both increments.
+
+### Frontend
+
+1. No-history path shows direct cards input and update button.
+2. Has-history path hides direct overwrite and shows increment modal flow.
+3. Goal modal slider save persists and reflected value survives reload.
+4. After each successful write, UI values come from latest state payload.
+5. Write error and refetch error preserve last valid state and show feedback.
+6. Token hydration path loads latest backend state once token is available.
 
 ## Acceptance criteria
 
