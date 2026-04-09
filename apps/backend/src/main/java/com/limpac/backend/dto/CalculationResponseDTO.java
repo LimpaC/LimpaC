@@ -11,6 +11,7 @@ public record CalculationResponseDTO(
         Integer treesPreserved,
         Double waterSaved,
         Double energySaved,
+        Double moneySaved,
         LocalDateTime createdAt
 ) {
 }

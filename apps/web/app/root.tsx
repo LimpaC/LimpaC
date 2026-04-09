@@ -35,7 +35,8 @@ export default function App() {
   const { token, setToken } = useTokenStore()
 
   useEffect(() => {
-    if (!token) {
+    // Only generate a token if one doesn't exist and the store has hydrated
+    if (useTokenStore.persist.hasHydrated() && !token) {
       setToken(uuidv4())
     }
   }, [token, setToken])

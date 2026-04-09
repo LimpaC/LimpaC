@@ -19,6 +19,7 @@ public class Calculation {
     private Integer treesPreserved;
     private Double waterSaved;
     private Double energySaved;
+    private Double moneySaved;
 
     private LocalDateTime createdAt;
 
@@ -26,7 +27,7 @@ public class Calculation {
     @JoinColumn(name = "user_id")
     private User manager;
 
-    public Calculation(UUID id, Double cards, Double co2Impact, Double plasticSaved, Integer treesPreserved, Double waterSaved, Double energySaved, LocalDateTime createdAt, User manager) {
+    public Calculation(UUID id, Double cards, Double co2Impact, Double plasticSaved, Integer treesPreserved, Double waterSaved, Double energySaved, Double moneySaved, LocalDateTime createdAt, User manager) {
         this.id = id;
         this.cards = cards;
         this.co2Impact = co2Impact;
@@ -34,6 +35,7 @@ public class Calculation {
         this.treesPreserved = treesPreserved;
         this.waterSaved = waterSaved;
         this.energySaved = energySaved;
+        this.moneySaved = moneySaved;
         this.createdAt = createdAt;
         this.manager = manager;
     }
@@ -95,6 +97,14 @@ public class Calculation {
 
     public void setEnergySaved(Double energySaved) {
         this.energySaved = energySaved;
+    }
+
+    public Double getMoneySaved() {
+        return moneySaved;
+    }
+
+    public void setMoneySaved(Double moneySaved) {
+        this.moneySaved = moneySaved;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -17,6 +17,7 @@ export const useTokenStore = create<TokenState>()(
       name: "device_token",
       storage: createJSONStorage(() => ({
         getItem: (name) => {
+          if (typeof document === "undefined") return null
           const nameEQ = name + "="
           const ca = document.cookie.split(";")
           for (let i = 0; i < ca.length; i++) {

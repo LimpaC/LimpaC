@@ -2,6 +2,9 @@ package com.limpac.backend.controller;
 
 import com.limpac.backend.dto.CalculationRequestDTO;
 import com.limpac.backend.dto.CalculationResponseDTO;
+import com.limpac.backend.dto.CalculationIncrementRequestDTO;
+import com.limpac.backend.dto.CalculationDecrementRequestDTO;
+import com.limpac.backend.dto.DashboardStateResponseDTO;
 import com.limpac.backend.service.CalculationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -34,6 +37,24 @@ public class CalculationController {
         if (response.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/increment")
+    public ResponseEntity<CalculationResponseDTO> increment(@RequestBody @Valid CalculationIncrementRequestDTO request) {
+        CalculationResponseDTO response = service.increment(request);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @PostMapping("/decrement")
+    public ResponseEntity<CalculationResponseDTO> decrement(@RequestBody @Valid CalculationDecrementRequestDTO request) {
+        CalculationResponseDTO response = service.decrement(request);
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/state")
+    public ResponseEntity<DashboardStateResponseDTO> state(@RequestParam UUID token) {
+        DashboardStateResponseDTO response = service.state(token);
         return ResponseEntity.ok(response);
     }
 }

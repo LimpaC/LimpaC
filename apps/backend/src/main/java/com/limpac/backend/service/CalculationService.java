@@ -1,8 +1,14 @@
 package com.limpac.backend.service;
 
+import com.limpac.backend.config.CalculationMetricsProperties;
 import com.limpac.backend.dto.CalculationRequestDTO;
 import com.limpac.backend.dto.CalculationResponseDTO;
+import com.limpac.backend.dto.CalculationIncrementRequestDTO;
+import com.limpac.backend.dto.CalculationDecrementRequestDTO;
+import com.limpac.backend.dto.CalculationMetricsDTO;
+import com.limpac.backend.dto.DashboardStateResponseDTO;
 import com.limpac.backend.entity.Calculation;
+import com.limpac.backend.entity.Goal;
 import com.limpac.backend.entity.User;
 import com.limpac.backend.repository.CalculationRepository;
 import com.limpac.backend.repository.UserRepository;
@@ -20,16 +26,14 @@ public class CalculationService {
 
     private final CalculationRepository repository;
     private final UserRepository userRepository;
+    private final GoalService goalService;
+    private final CalculationMetricsProperties metrics;
 
-    private static final double CO2_PER_CARD = 0.044;
-    private static final double PLASTIC_PER_CARD = 0.00714;
-    private static final double TREES_PER_CARD = 0.0342;
-    private static final double WATER_PER_CARD = 12.857;
-    private static final double ENERGY_PER_CARD = 0.514;
-
-    public CalculationService(CalculationRepository repository, UserRepository userRepository) {
+    public CalculationService(CalculationRepository repository, UserRepository userRepository, GoalService goalService, CalculationMetricsProperties metrics) {
         this.repository = repository;
         this.userRepository = userRepository;
+        this.goalService = goalService;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -39,11 +43,12 @@ public class CalculationService {
         double cards = dto.cards();
 
         entity.setCards(cards);
-        entity.setCo2Impact(cards * CO2_PER_CARD);
-        entity.setPlasticSaved(cards * PLASTIC_PER_CARD);
-        entity.setTreesPreserved((int) Math.round(cards * TREES_PER_CARD));
-        entity.setWaterSaved(cards * WATER_PER_CARD);
-        entity.setEnergySaved(cards * ENERGY_PER_CARD);
+        entity.setCo2Impact(cards * metrics.getCo2PerCard());
+        entity.setPlasticSaved(cards * metrics.getPlasticPerCard());
+        entity.setTreesPreserved((int) Math.round(cards * metrics.getTreesPerCard()));
+        entity.setWaterSaved(cards * metrics.getWaterPerCard());
+        entity.setEnergySaved(cards * metrics.getEnergyPerCard());
+        entity.setMoneySaved(cards * metrics.getMoneySavedPerCardBrl());
         entity.setCreatedAt(LocalDateTime.now());
         entity.setManager(manager);
 
@@ -60,12 +65,71 @@ public class CalculationService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public DashboardStateResponseDTO state(UUID token) {
+        Goal goal = goalService.getOrCreateByToken(token);
+        Calculation latest = repository.findTopByManagerOrderByCreatedAtDesc(goal.getManager()).orElse(null);
+        double progress = calculateProgress(latest, goal);
+
+        return new DashboardStateResponseDTO(
+                goalService.toDTO(goal),
+                latest == null ? null : convertToDTO(latest),
+                metricsDTO(),
+                latest != null,
+                progress
+        );
+    }
+
+    @Transactional
+    public CalculationResponseDTO increment(CalculationIncrementRequestDTO dto) {
+        User manager = lockUserByToken(dto.token());
+        Calculation latest = repository.findTopByManagerOrderByCreatedAtDesc(manager)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Nenhum histórico de cálculo foi encontrado para incrementar."));
+
+        CalculationRequestDTO request = new CalculationRequestDTO(latest.getCards() + dto.addCards(), dto.token());
+        return save(request);
+    }
+
+    @Transactional
+    public CalculationResponseDTO decrement(CalculationDecrementRequestDTO dto) {
+        User manager = lockUserByToken(dto.token());
+        Calculation latest = repository.findTopByManagerOrderByCreatedAtDesc(manager)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "Nenhum histórico de cálculo foi encontrado para remover."));
+
+        double nextCards = latest.getCards() - dto.removeCards();
+        if (nextCards < 1) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "A quantidade final de cartões não pode ser menor que 1.");
+        }
+
+        CalculationRequestDTO request = new CalculationRequestDTO(nextCards, dto.token());
+        return save(request);
+    }
+
+    private double calculateProgress(Calculation latest, Goal goal) {
+        if (latest == null) {
+            return 0;
+        }
+
+        double target = goal.getTargetCards();
+        double progress = (latest.getCards() / target) * 100;
+        return Math.max(0, Math.min(100, progress));
+    }
+
     private User validateUserToken(UUID token) {
         if (token == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O token do usuário é obrigatório.");
         }
 
         return userRepository.findByToken(token)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token de usuário inválido."));
+    }
+
+    private User lockUserByToken(UUID token) {
+        if (token == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O token do usuário é obrigatório.");
+        }
+
+        return userRepository.findByTokenForUpdate(token)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token de usuário inválido."));
     }
 
@@ -78,7 +142,22 @@ public class CalculationService {
                 entity.getTreesPreserved(),
                 entity.getWaterSaved(),
                 entity.getEnergySaved(),
+                entity.getMoneySaved(),
                 entity.getCreatedAt()
+        );
+    }
+
+    private CalculationMetricsDTO metricsDTO() {
+        return new CalculationMetricsDTO(
+                metrics.getCo2PerCard(),
+                metrics.getPlasticPerCard(),
+                metrics.getTreesPerCard(),
+                metrics.getWaterPerCard(),
+                metrics.getEnergyPerCard(),
+                metrics.getMoneySavedPerCardBrl(),
+                metrics.getMaterialCostPerCardBrl(),
+                metrics.getManufacturingCostPerCardBrl(),
+                metrics.getShippingCostPerCardBrl()
         );
     }
 }
