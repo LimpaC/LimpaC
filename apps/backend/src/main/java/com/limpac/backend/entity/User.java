@@ -85,6 +85,7 @@ public class User {
         this.phone = phone;
     }
 
+<<<<<<< HEAD
     public UUID getToken() {
         return token;
     }
@@ -93,6 +94,8 @@ public class User {
         this.token = token;
     }
 
+=======
+>>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;

@@ -6,9 +6,12 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
 } from "react-router"
+<<<<<<< HEAD
 import { useEffect } from "react"
 import { useTokenStore } from "./lib/store"
 import { v4 as uuidv4 } from "uuid"
+=======
+>>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
 
 import type { Route } from "./+types/root"
 import "./app.css"
@@ -32,6 +35,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+<<<<<<< HEAD
   const { token, setToken } = useTokenStore()
 
   useEffect(() => {
@@ -40,6 +44,8 @@ export default function App() {
     }
   }, [token, setToken])
 
+=======
+>>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
   return <Outlet />
 }
 

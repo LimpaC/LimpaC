@@ -10,7 +10,10 @@
   },
   "devDependencies": {
     "prettier": "^3.7.4",
+<<<<<<< HEAD
     "shadcn": "^4.2.0",
+=======
+>>>>>>> 846e6abfc5f352a23603caf29ece639c484068e8
     "turbo": "^2.8.20",
     "typescript": "5.9.2"
   },
