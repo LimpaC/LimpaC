@@ -24,7 +24,7 @@
 <details>
 <summary>Entrega 02</summary>
 
-- **Screencast**: <https://youtu.be/D09MaArZBA8>
+- **Screencast**: <https://youtu.be/4Fil7E6QE3w>
 - **Taiga**: <https://tree.taiga.io/project/jggrimaldi-limpac/timeline>
 </details>
 
