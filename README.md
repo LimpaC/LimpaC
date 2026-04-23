@@ -59,6 +59,10 @@ Empresas não possuem ferramentas específicas para medir o impacto ambiental da
 
 Com a crescente demanda por práticas sustentáveis, organizações precisam demonstrar benefícios ambientais concretos para stakeholders, relatórios e iniciativas de compliance.
 
+## Bugtracker
+Estamos usando a aba issues do github como bugtracker, segue em anexo:
+<img width="1623" height="969" alt="image" src="https://github.com/user-attachments/assets/802261f4-0490-42f0-8b71-cb18f29a0655" />
+
 ## Solução
 
 O **LimpaC** propõe uma **calculadora interativa** que compara o impacto ambiental entre cartões físicos e pagamentos digitais.
