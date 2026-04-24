@@ -84,7 +84,7 @@ O cálculo considera diferentes fatores envolvidos nos dois cenários, incluindo
 
 Com isso, a ferramenta ajuda empresas a compreenderem o impacto da digitalização dos pagamentos de forma prática, acessível e orientada à tomada de decisão.
 
-## Flxuo de versionamento
+## Fluxo de versionamento
 <div align="center"><img src="https://files.catbox.moe/7j0bry.png" alt="Fluxo de versionamento"></div>    
 
 ## Equipe
