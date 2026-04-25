@@ -17,8 +17,6 @@ public class Goal {
 
     private LocalDateTime updatedAt;
 
-    private boolean configured;
-
     @OneToOne
     @JoinColumn(name = "user_id", unique = true)
     private User manager;
@@ -48,14 +46,6 @@ public class Goal {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
-    }
-
-    public boolean isConfigured() {
-        return configured;
-    }
-
-    public void setConfigured(boolean configured) {
-        this.configured = configured;
     }
 
     public User getManager() {

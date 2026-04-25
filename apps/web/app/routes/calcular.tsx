@@ -1,6 +1,4 @@
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react"
-import NumberFlow from "@number-flow/react"
-import { cn } from "~/lib/utils"
+import { useEffect, useState } from "react"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
@@ -9,12 +7,23 @@ import { Progress } from "~/components/ui/progress"
 import {
   CreditCard,
   Banknote,
+  Wallet,
+  TreeDeciduous,
   Droplets,
   Zap,
-  CirclePlus,
+  Factory,
+  Truck,
+  HelpCircle,
+  Settings,
 } from "lucide-react"
 import { useTokenStore } from "~/lib/store"
 import { Skeleton } from "~/components/ui/skeleton"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -28,6 +37,7 @@ type CalculationResult = {
   id: string
   cards: number
   co2Impact: number
+  treesPreserved: number
   waterSaved: number
   energySaved: number
   moneySaved: number
@@ -49,7 +59,6 @@ type MetricsResult = {
 type GoalResult = {
   targetCards: number
   updatedAt: string
-  configured: boolean
 }
 
 type DashboardState = {
@@ -60,110 +69,10 @@ type DashboardState = {
   progressPct: number
 }
 
-type MetricCardProps = {
-  icon: ReactNode
-  eyebrow: string
-  title: string
-  value: number
-  isLoading: boolean
-  format: NumberFlowFormat
-  suffix?: string
-  helper: string
-  valueClassName?: string
-  loadingWidth?: string
-}
-
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080"
 const DEFAULT_CARDS = 350
 const GOAL_MIN = 1
 const GOAL_MAX = 5_000_000
-const integerFormatter = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 0,
-})
-type NumberFlowFormat = NonNullable<ComponentProps<typeof NumberFlow>["format"]>
-
-const moneyFlowFormat = {
-  style: "currency",
-  currency: "BRL",
-  maximumFractionDigits: 2,
-} as const satisfies NumberFlowFormat
-const integerFlowFormat = {
-  maximumFractionDigits: 0,
-} as const satisfies NumberFlowFormat
-
-function clampInteger(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, Math.floor(value)))
-}
-
-function AnimatedMetricValue({
-  value,
-  isLoading,
-  format,
-  suffix,
-  valueClassName,
-  loadingWidth = "w-28",
-}: {
-  value: number
-  isLoading: boolean
-  format: NumberFlowFormat
-  suffix?: string
-  valueClassName?: string
-  loadingWidth?: string
-}) {
-  if (isLoading) {
-    return <Skeleton className={cn("h-12 rounded-xl bg-slate-100/80", loadingWidth)} />
-  }
-
-  return (
-    <div className={cn("font-heading tabular-nums tracking-[-0.04em] text-slate-950", valueClassName)}>
-      <NumberFlow value={value} format={format} locales="pt-BR" suffix={suffix} />
-    </div>
-  )
-}
-
-function MetricCard({
-  icon,
-  eyebrow,
-  title,
-  value,
-  isLoading,
-  format,
-  suffix,
-  helper,
-  valueClassName,
-  loadingWidth,
-}: MetricCardProps) {
-  return (
-    <Card className="border-white/70 bg-white/90 shadow-[0_18px_36px_-28px_rgba(15,23,42,0.28)] backdrop-blur-xl">
-      <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100/80">
-              {icon}
-            </div>
-            <div className="min-w-0">
-              {eyebrow ? (
-                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {eyebrow}
-                </p>
-              ) : null}
-            <h3 className="mt-1 text-xs font-medium text-slate-700">{title}</h3>
-          </div>
-        </div>
-
-        <AnimatedMetricValue
-          value={value}
-          isLoading={isLoading}
-          format={format}
-          suffix={suffix}
-          valueClassName={valueClassName ?? "text-2xl sm:text-[2rem] leading-none"}
-          loadingWidth={loadingWidth}
-        />
-
-        {helper ? <p className="text-xs leading-relaxed text-slate-500">{helper}</p> : null}
-      </CardContent>
-    </Card>
-  )
-}
 
 export default function Calcular() {
   const token = useTokenStore((state) => state.token)
@@ -174,21 +83,19 @@ export default function Calcular() {
   const [metrics, setMetrics] = useState<MetricsResult | null>(null)
   const [hasHistory, setHasHistory] = useState(false)
   const [goalDraft, setGoalDraft] = useState<number>(GOAL_MAX)
-  const [goalConfigured, setGoalConfigured] = useState(false)
+  const [incrementAmount, setIncrementAmount] = useState<number>(1)
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false)
-  const [isEditCardsModalOpen, setIsEditCardsModalOpen] = useState(false)
-  const [editedCards, setEditedCards] = useState<number>(DEFAULT_CARDS)
+  const [isIncrementModalOpen, setIsIncrementModalOpen] = useState(false)
+  const [isDecrementModalOpen, setIsDecrementModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false)
-  const [isSavingCards, setIsSavingCards] = useState(false)
+  const [isIncrementing, setIsIncrementing] = useState(false)
+  const [isDecrementing, setIsDecrementing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
-  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
-    const raf = requestAnimationFrame(() => setIsReady(true))
-    return () => cancelAnimationFrame(raf)
   }, [])
 
   const resolveToken = () => {
@@ -224,10 +131,8 @@ export default function Calcular() {
     setResult(data.latestCalculation)
     setHasHistory(data.hasHistory)
     setProgress(data.progressPct)
-    setGoalConfigured(data.goal.configured)
     if (data.latestCalculation) {
       setCards(data.latestCalculation.cards)
-      setEditedCards(data.latestCalculation.cards)
     }
   }
 
@@ -311,21 +216,21 @@ export default function Calcular() {
     }
   }
 
-  const incrementCards = async (amount: number) => {
+  const incrementCards = async () => {
     const currentToken = resolveToken()
 
     if (!currentToken) {
       setError("Token do dispositivo ainda nao foi inicializado.")
-      return false
+      return
     }
 
-    const normalized = clampInteger(amount, 1, GOAL_MAX)
-    if (normalized < 1) {
+    const amount = Math.floor(incrementAmount)
+    if (amount < 1) {
       setError("Informe uma quantidade valida para adicionar.")
-      return false
+      return
     }
 
-    setIsSavingCards(true)
+    setIsIncrementing(true)
     setError(null)
 
     try {
@@ -334,7 +239,7 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, addCards: normalized }),
+        body: JSON.stringify({ token: currentToken, addCards: amount }),
       })
 
       if (!response.ok) {
@@ -342,35 +247,35 @@ export default function Calcular() {
       }
 
       await refreshState()
-      return true
+      setIncrementAmount(1)
+      setIsIncrementModalOpen(false)
     } catch {
       setError("Nao foi possivel conectar o front ao backend no momento.")
-      return false
     } finally {
-      setIsSavingCards(false)
+      setIsIncrementing(false)
     }
   }
 
-  const decrementCards = async (amount: number) => {
+  const decrementCards = async () => {
     const currentToken = resolveToken()
 
     if (!currentToken) {
       setError("Token do dispositivo ainda nao foi inicializado.")
-      return false
+      return
     }
 
-    const normalized = clampInteger(amount, 1, GOAL_MAX)
-    if (normalized < 1) {
+    const amount = Math.floor(incrementAmount)
+    if (amount < 1) {
       setError("Informe uma quantidade valida para remover.")
-      return false
+      return
     }
 
-    if (displayedCards - normalized < 1) {
+    if (displayedCards - amount < 1) {
       setError("A quantidade final de cartoes nao pode ser menor que 1.")
-      return false
+      return
     }
 
-    setIsSavingCards(true)
+    setIsDecrementing(true)
     setError(null)
 
     try {
@@ -379,7 +284,7 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, removeCards: normalized }),
+        body: JSON.stringify({ token: currentToken, removeCards: amount }),
       })
 
       if (!response.ok) {
@@ -387,34 +292,12 @@ export default function Calcular() {
       }
 
       await refreshState()
-      return true
+      setIncrementAmount(1)
+      setIsDecrementModalOpen(false)
     } catch {
       setError("Nao foi possivel conectar o front ao backend no momento.")
-      return false
     } finally {
-      setIsSavingCards(false)
-    }
-  }
-
-  const openEditCardsModal = () => {
-    setEditedCards(displayedCards)
-    setIsEditCardsModalOpen(true)
-  }
-
-  const saveEditedCards = async () => {
-    const normalized = clampInteger(editedCards, 1, GOAL_MAX)
-    const delta = normalized - displayedCards
-
-    if (delta === 0) {
-      setIsEditCardsModalOpen(false)
-      return
-    }
-
-    const success =
-      delta > 0 ? await incrementCards(delta) : await decrementCards(Math.abs(delta))
-
-    if (success) {
-      setIsEditCardsModalOpen(false)
+      setIsDecrementing(false)
     }
   }
 
@@ -426,7 +309,7 @@ export default function Calcular() {
       return
     }
 
-    const normalized = clampInteger(goalDraft, GOAL_MIN, GOAL_MAX)
+    const normalized = Math.max(GOAL_MIN, Math.min(GOAL_MAX, Math.floor(goalDraft)))
 
     setIsUpdatingGoal(true)
     setError(null)
@@ -461,237 +344,344 @@ export default function Calcular() {
     void loadState()
   }, [isClient, token])
 
-  useEffect(() => {
-    const openGoal = () => setIsGoalModalOpen(true)
-    const openCards = () => setIsEditCardsModalOpen(true)
-
-    window.addEventListener("limpac:open-goal", openGoal as EventListener)
-    window.addEventListener("limpac:open-cards", openCards as EventListener)
-
-    return () => {
-      window.removeEventListener("limpac:open-goal", openGoal as EventListener)
-      window.removeEventListener("limpac:open-cards", openCards as EventListener)
-    }
-  }, [])
-
   if (!isClient) return null
 
   const displayedCards = result?.cards ?? cards
+  const calculatedCards = result?.cards ?? 0
   const moneySaved = result?.moneySaved ?? 0
-  const waterSaved = result?.waterSaved ?? 0
-  const pollutionAvoided = result?.co2Impact ?? 0
-  const pollutionPerCard = metrics?.co2PerCard ?? 0
+  const treesPreserved = result?.treesPreserved ?? 0
+  const waterSaved = Math.round(result?.waterSaved ?? 0).toLocaleString("pt-BR")
+  const energySaved = Math.round(result?.energySaved ?? 0)
+  const materialCostPerCard = metrics?.materialCostPerCardBrl ?? 0
+  const manufacturingCostPerCard = metrics?.manufacturingCostPerCardBrl ?? 0
+  const shippingCostPerCard = metrics?.shippingCostPerCardBrl ?? 0
+  const monetaryEquivalentMaterial = calculatedCards * materialCostPerCard
+  const monetaryEquivalentManufacturing = calculatedCards * manufacturingCostPerCard
+  const monetaryEquivalentShipping = calculatedCards * shippingCostPerCard
 
-  const shellClass = cn(
-    "border-white/70 bg-white/85 shadow-[0_16px_38px_-30px_rgba(15,23,42,0.26)] backdrop-blur-xl",
-    "transition-[border-color,opacity] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
-  )
-  const enterClass = isReady ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 2,
+    }).format(value)
+
+  const EquivalenceValue = ({
+    value,
+    label,
+    isLoading,
+    valueClassName,
+  }: {
+    value: string | number
+    label: string
+    isLoading: boolean
+    valueClassName?: string
+  }) => {
+    return (
+      <div className="space-y-0">
+        {isLoading ? (
+          <Skeleton className="my-1 h-[32px] w-[60px] bg-slate-100" />
+        ) : (
+          <p className={`text-[28px] leading-none font-black text-[#0f172a] ${valueClassName ?? ""}`}>
+            {value}
+          </p>
+        )}
+        <p className="text-[11px] text-slate-400">{label}</p>
+      </div>
+    )
+  }
+
   return (
-    <>
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-8">
-        <section
-          className={cn("fade-rise space-y-6", enterClass)}
-          style={{ transitionDelay: "90ms" }}
-        >
-          <Card className={cn(shellClass, "rounded-[28px]")}>
-            <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="mt-2 font-heading text-2xl font-semibold tracking-[-0.04em] text-slate-950">
-                    Cartões digitais utilizados
-                  </h2>
-                </div>
-              </div>
+    <div className="min-h-screen bg-slate-50/50 font-sans text-[#0f172a]">
+      <header className="flex h-16 items-center justify-between border-b bg-white px-8">
+        <div className="flex items-center gap-1 text-2xl font-bold text-rose-500">
+          Limpa
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-rose-500 text-[10px]">
+            ©
+          </span>
+        </div>
+        <nav className="hidden items-center gap-6 lg:flex">
+          <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400">
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" className="h-9 px-3 text-sm font-semibold text-slate-600">
+            Dashboard
+          </Button>
+          <Button variant="ghost" className="h-9 px-3 text-sm font-semibold text-slate-600">
+            Relatórios
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-600">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsGoalModalOpen(true)}>
+                Ajustar Meta
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </nav>
+      </header>
 
-              {!hasHistory ? (
-                <>
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="cards"
-                      className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
-                    >
-                      Quantidade
-                    </Label>
-                    <div className="relative">
-                      <CreditCard className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <Input
-                        id="cards"
-                        type="number"
-                        min={1}
-                        value={cards}
-                        onChange={(e) =>
-                          setCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))
-                        }
-                        className="no-spinner h-12 rounded-2xl border-slate-200 bg-slate-50/80 pl-12 text-base font-medium text-slate-950 shadow-none focus-visible:ring-rose-500"
-                      />
-                    </div>
-                  </div>
+      <main className="mx-auto max-w-6xl px-8 py-10">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
+          <div className="space-y-8">
+            <div className="space-y-5">
+              <h1 className="text-[40px] leading-[1.05] font-black tracking-tight text-[#0f172a]">
+                Calcular impacto ambiental da transação física vs digital
+              </h1>
+              <p className="max-w-md text-[16px] leading-relaxed text-slate-500">
+                Avalie como a migração para o digital reduz a emissão de
+                poluentes e o consumo de recursos naturais em suas operações
+                diárias.
+              </p>
+            </div>
 
-                  <Button
-                    onClick={() => void calculateImpact(cards)}
-                    disabled={isLoading}
-                    className="h-12 w-full rounded-2xl bg-rose-500 text-[11px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(244,63,94,0.95)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
-                  >
-                    {isLoading ? "Calculando..." : "Atualizar economia"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <Card className="max-w-md border-slate-100 bg-white shadow-none">
+              <CardContent className="space-y-5 p-6 py-4">
+                {!hasHistory ? (
+                  <>
                     <div className="space-y-2">
-                      <Label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        Contagem atual
+                      <Label
+                        htmlFor="cards"
+                        className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase"
+                      >
+                        Quantidade de cartões digitais utilizados
                       </Label>
-                      <div className="font-heading text-[2.2rem] font-semibold tracking-[-0.06em] text-slate-950 sm:text-[2.4rem]">
-                        <NumberFlow value={displayedCards} format={integerFlowFormat} locales="pt-BR" />
+                      <div className="relative">
+                        <CreditCard className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="cards"
+                          type="number"
+                          min={1}
+                          value={cards}
+                          onChange={(e) => setCards(Math.max(1, Math.floor(Number(e.target.value) || 0)))}
+                          className="no-spinner h-12 border-slate-100 bg-slate-50/50 pl-12 text-lg font-bold focus-visible:ring-rose-500"
+                        />
                       </div>
                     </div>
-                  </div>
-
-                  <Button
-                    onClick={openEditCardsModal}
-                    disabled={isSavingCards}
-                    className="h-11 w-full rounded-2xl bg-rose-500 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-none transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
-                  >
-                    {isSavingCards ? "Atualizando..." : "Editar cartões"}
-                  </Button>
-                </>
-              )}
-
-              {error ? (
-                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                  {error}
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        </section>
-
-        <section
-          className={cn("fade-rise space-y-6", enterClass)}
-          style={{ transitionDelay: "150ms" }}
-        >
-          <MetricCard
-            icon={<Banknote className="h-5 w-5" />}
-            eyebrow=""
-            title="Economia total"
-            value={moneySaved}
-            isLoading={isLoading}
-            format={moneyFlowFormat}
-            helper=""
-            valueClassName="text-[2rem] sm:text-[2.4rem] leading-none"
-            loadingWidth="w-44"
-          />
-
-          <Card className={cn(shellClass, "rounded-[28px]")}>
-            <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="font-heading text-xl font-semibold tracking-[-0.04em] text-slate-950">
-                    Impacto preservado
-                  </h2>
-                </div>
-              </div>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Droplets className="h-4 w-4 text-rose-500" />
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Água
-                    </p>
-                  </div>
-                  <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
-                    <NumberFlow value={waterSaved} format={integerFlowFormat} locales="pt-BR" />
-                  </div>
-                  <p className="text-sm leading-6 text-slate-600">Litros economizados</p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-rose-500" />
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                      Poluição
-                    </p>
-                  </div>
-                  <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
-                    <NumberFlow
-                      value={pollutionAvoided}
-                      format={{ maximumFractionDigits: 2 }}
-                      locales="pt-BR"
-                    />
-                  </div>
-                  <p className="text-sm leading-6 text-slate-600">CO2e evitado</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className={cn(shellClass, "rounded-[28px]")}>
-            <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
-              {goalConfigured ? (
-                <div className="mx-auto flex max-w-md flex-col items-center space-y-3 text-center">
-                  <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
-                    <NumberFlow value={goal} format={integerFlowFormat} locales="pt-BR" /> cartões
-                  </div>
-
-                  <div className="relative w-full pt-6">
-                    <div
-                      className="absolute top-0 z-10 -translate-x-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[0_8px_20px_-16px_rgba(15,23,42,0.45)]"
-                      style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
+                    <Button
+                      onClick={() => void calculateImpact(cards)}
+                      disabled={isLoading}
+                      className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600"
                     >
-                      {Math.round(progress).toLocaleString("pt-BR")}%
+                      {isLoading ? "Calculando..." : "Atualizar Economia"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase">
+                        Quantidade de cartões digitais utilizados
+                      </Label>
+                      <p className="text-[28px] font-black text-[#0f172a]">
+                        {displayedCards.toLocaleString("pt-BR")}
+                      </p>
                     </div>
+                    <Button
+                      onClick={() => setIsIncrementModalOpen(true)}
+                      disabled={isIncrementing || isDecrementing}
+                      className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600"
+                    >
+                      {isIncrementing ? "Atualizando..." : "Adicionar cartões"}
+                    </Button>
+                    <Button
+                      onClick={() => setIsDecrementModalOpen(true)}
+                      disabled={isIncrementing || isDecrementing}
+                      className="h-12 w-full bg-slate-200 text-[11px] font-bold tracking-[0.05em] text-slate-700 uppercase shadow-none hover:bg-slate-300"
+                    >
+                      {isDecrementing ? "Atualizando..." : "Remover cartões"}
+                    </Button>
+                  </>
+                )}
+                {error ? <p className="text-sm text-rose-500">{error}</p> : null}
+              </CardContent>
+            </Card>
+          </div>
 
-                    <Progress
-                      value={progress}
-                      className="h-4 rounded-full bg-slate-100"
-                      indicatorClassName="bg-rose-500"
+          <div className="space-y-4">
+            <div className="grid-row-2 grid gap-4 lg:grid-cols-1">
+              <Card className="border-slate-100 bg-white py-2! shadow-none">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                      <Banknote className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <span className="text-[11px] font-bold tracking-[0.05em] text-[#1e293b] uppercase">
+                      Economia em Dinheiro
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-0.5">
+                    <p className="text-[10px] font-medium text-slate-400 uppercase">
+                      Economia Total
+                    </p>
+                    {isLoading ? (
+                      <Skeleton className="h-[40px] w-[150px] bg-slate-100" />
+                    ) : (
+                      <p className="text-[28px] font-black text-[#0f172a]">{formatCurrency(moneySaved)}</p>
+                    )}
+                    <p className="text-[11px] text-slate-400">Material + Manufatura + Envio</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="border-slate-100 bg-white shadow-none">
+              <CardContent className="p-6 py-4">
+                <h3 className="text-[12px] font-bold tracking-[0.05em] text-[#1e293b] uppercase">
+                  Equivalências Ambientais
+                </h3>
+                <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:justify-between lg:gap-0">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                        <TreeDeciduous className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">
+                        Árvores
+                      </span>
+                    </div>
+                    <EquivalenceValue
+                      value={treesPreserved}
+                      label="Árvores preservadas"
+                      isLoading={isLoading}
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                        <Droplets className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">
+                        Água
+                      </span>
+                    </div>
+                    <EquivalenceValue value={waterSaved} label="L economizados" isLoading={isLoading} />
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                        <Zap className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">
+                        Energia
+                      </span>
+                    </div>
+                    <EquivalenceValue value={energySaved} label="kWh poupados" isLoading={isLoading} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-100 bg-white shadow-none">
+              <CardContent className="p-6 py-4">
+                <h3 className="text-[12px] font-bold tracking-[0.05em] text-[#1e293b] uppercase">
+                  Equivalências Financeiras
+                </h3>
+                <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:justify-between lg:gap-4">
+                  <div className="min-w-0 space-y-4 lg:w-[32%]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                        <Wallet className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Material</span>
+                    </div>
+                    <EquivalenceValue
+                      value={formatCurrency(monetaryEquivalentMaterial)}
+                      label={`R$ ${materialCostPerCard.toFixed(2)} por cartão`}
+                      isLoading={isLoading}
+                      valueClassName="text-[22px] leading-tight lg:text-[24px]"
+                    />
+                  </div>
+                  <div className="min-w-0 space-y-4 lg:w-[32%]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                        <Factory className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Manufatura</span>
+                    </div>
+                    <EquivalenceValue
+                      value={formatCurrency(monetaryEquivalentManufacturing)}
+                      label={`R$ ${manufacturingCostPerCard.toFixed(2)} por cartão`}
+                      isLoading={isLoading}
+                      valueClassName="text-[22px] leading-tight lg:text-[24px]"
+                    />
+                  </div>
+                  <div className="min-w-0 space-y-4 lg:w-[32%]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
+                        <Truck className="h-4 w-4 text-slate-400" />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-500 uppercase">Envio</span>
+                    </div>
+                    <EquivalenceValue
+                      value={formatCurrency(monetaryEquivalentShipping)}
+                      label={`R$ ${shippingCostPerCard.toFixed(2)} por cartão`}
+                      isLoading={isLoading}
+                      valueClassName="text-[22px] leading-tight lg:text-[24px]"
                     />
                   </div>
                 </div>
-              ) : (
-                <div className="mx-auto flex min-h-[10rem] max-w-md flex-col items-center justify-center gap-4 py-2 text-center">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100/80">
-                    <CirclePlus className="h-5 w-5" />
-                  </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-100 bg-white shadow-none">
+              <CardContent className="p-6 py-5">
+                <div className="flex items-start justify-between">
                   <div className="space-y-2">
-                    <h3 className="font-heading text-lg font-semibold tracking-[-0.04em] text-slate-950">
-                      Nenhuma meta definida
+                    <h3 className="text-xl leading-tight font-black text-[#0f172a]">
+                      Meta
                     </h3>
-                    <p className="max-w-sm text-sm leading-6 text-slate-600">
-                      Defina uma meta para ter mais controle sobre o período.
-                    </p>
                   </div>
-                  <Button
-                    className="h-10 rounded-2xl bg-rose-500 px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white hover:bg-rose-600"
-                    onClick={() => setIsGoalModalOpen(true)}
-                  >
-                    Adicionar meta
-                  </Button>
+                  <div className="text-right">
+                    <div className="flex items-baseline justify-end gap-1">
+                      <span className="text-[28px] font-black text-[#0f172a]">
+                        {Math.round(goal).toLocaleString("pt-BR")}
+                      </span>
+                      <span className="text-[11px] font-bold text-[#0f172a]">cartões</span>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </section>
-      </div>
+
+                <div className="mt-8 space-y-3">
+                  <Progress
+                    value={progress}
+                    className="h-6 rounded-md bg-slate-100"
+                    indicatorClassName="bg-red-600"
+                  />
+                  <div className="flex justify-between text-[10px] font-bold tracking-wide text-slate-400 uppercase">
+                    <span>Início do Ano</span>
+                    <span>Meta: {Math.round(goal).toLocaleString("pt-BR")}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Button className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600">
+              Ver Relatório
+            </Button>
+            <p className="text-right text-[11px] text-slate-400">
+              Baseado em {calculatedCards.toLocaleString("pt-BR")} cartoes.
+            </p>
+          </div>
+        </div>
+      </main>
 
       <Dialog open={isGoalModalOpen} onOpenChange={setIsGoalModalOpen}>
-        <DialogContent className="w-[92vw] max-w-2xl rounded-[28px] border-white/70 bg-white/95 shadow-[0_30px_110px_-70px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl tracking-[-0.04em] text-slate-950">
-              Definir meta
-            </DialogTitle>
-            <DialogDescription className="text-slate-600">
-              Ajuste sua meta de cartões digitais para refletir o objetivo do período.
-            </DialogDescription>
-          </DialogHeader>
+              <DialogTitle>Definir Meta</DialogTitle>
+              <DialogDescription>
+                Ajuste sua meta de cartões digitais para refletir o objetivo do período.
+              </DialogDescription>
+            </DialogHeader>
 
           <div className="mt-6 space-y-4">
             <Label
               htmlFor="goal-cards"
-              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+              className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase"
             >
               Meta de cartões
             </Label>
@@ -701,20 +691,18 @@ export default function Calcular() {
               min={GOAL_MIN}
               max={GOAL_MAX}
               value={goalDraft}
-              onChange={(e) =>
-                setGoalDraft(clampInteger(Number(e.target.value) || 0, GOAL_MIN, GOAL_MAX))
-              }
-              className="no-spinner h-12 rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
+              onChange={(e) => setGoalDraft(Math.max(GOAL_MIN, Math.floor(Number(e.target.value) || 0)))}
+              className="no-spinner h-12 border-slate-100 bg-slate-50/50 text-lg font-bold focus-visible:ring-rose-500"
             />
-            <p className="text-right text-xs font-medium text-slate-500">
-              {integerFormatter.format(goalDraft)} cartões
+            <p className="text-right text-sm font-semibold text-slate-500">
+              {Math.round(goalDraft).toLocaleString("pt-BR")} cartões
             </p>
           </div>
 
           <DialogFooter>
             <Button
               variant="ghost"
-              className="rounded-2xl px-4 text-slate-600 hover:bg-slate-50"
+              className="text-slate-600"
               onClick={() => {
                 setGoalDraft(goal)
                 setIsGoalModalOpen(false)
@@ -722,66 +710,94 @@ export default function Calcular() {
             >
               Cancelar
             </Button>
-            <Button
-              className="rounded-2xl bg-rose-500 px-4 text-white transition-all duration-300 ease-out hover:bg-rose-600"
-              onClick={() => void updateGoal()}
-              disabled={isUpdatingGoal}
-            >
-              {isUpdatingGoal ? "Salvando..." : "Salvar meta"}
+            <Button className="bg-rose-500 text-white hover:bg-rose-600" onClick={() => void updateGoal()} disabled={isUpdatingGoal}>
+              {isUpdatingGoal ? "Salvando..." : "Salvar Meta"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isEditCardsModalOpen} onOpenChange={setIsEditCardsModalOpen}>
-        <DialogContent className="w-[92vw] max-w-4xl rounded-[28px] border-white/70 bg-white/95 shadow-[0_30px_110px_-70px_rgba(15,23,42,0.55)] backdrop-blur-xl">
+      <Dialog open={isIncrementModalOpen} onOpenChange={setIsIncrementModalOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle className="font-heading text-xl tracking-[-0.04em] text-slate-950">
-              Editar cartões
-            </DialogTitle>
-            <DialogDescription className="text-slate-600">
-              Escreva a quantidade final de cartões digitais que deseja registrar.
+            <DialogTitle>Adicionar cartões</DialogTitle>
+            <DialogDescription>
+               Informe quantos cartões digitais foram utilizados desde a última atualização.
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-4 space-y-2">
-            <Label
-              htmlFor="edit-cards"
-              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
-            >
-              Quantidade final
+            <Label htmlFor="increment-cards" className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase">
+              Quantidade a adicionar
             </Label>
             <Input
-              id="edit-cards"
+              id="increment-cards"
               type="number"
               min={1}
-              value={editedCards}
-              onChange={(e) => setEditedCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))}
-              className="no-spinner h-12 w-full rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
+              value={incrementAmount}
+              onChange={(e) => setIncrementAmount(Math.max(1, Math.floor(Number(e.target.value) || 0)))}
+              className="no-spinner h-12 border-slate-100 bg-slate-50/50 text-lg font-bold focus-visible:ring-rose-500"
             />
           </div>
 
           <DialogFooter>
             <Button
               variant="ghost"
-              className="rounded-2xl px-4 text-slate-600 hover:bg-slate-50"
+              className="text-slate-600"
               onClick={() => {
-                setEditedCards(displayedCards)
-                setIsEditCardsModalOpen(false)
+                setIncrementAmount(1)
+                setIsIncrementModalOpen(false)
               }}
             >
               Cancelar
             </Button>
-            <Button
-              className="rounded-2xl bg-rose-500 px-4 text-white transition-all duration-300 ease-out hover:bg-rose-600"
-              onClick={() => void saveEditedCards()}
-              disabled={isSavingCards}
-            >
-              {isSavingCards ? "Atualizando..." : "Confirmar"}
+            <Button className="bg-rose-500 text-white hover:bg-rose-600" onClick={() => void incrementCards()} disabled={isIncrementing}>
+              {isIncrementing ? "Atualizando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+
+      <Dialog open={isDecrementModalOpen} onOpenChange={setIsDecrementModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remover cartões</DialogTitle>
+            <DialogDescription>
+              Informe quantos cartões precisam ser removidos da contagem atual.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-2">
+            <Label htmlFor="decrement-cards" className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase">
+              Quantidade a remover
+            </Label>
+            <Input
+              id="decrement-cards"
+              type="number"
+              min={1}
+              value={incrementAmount}
+              onChange={(e) => setIncrementAmount(Math.max(1, Math.floor(Number(e.target.value) || 0)))}
+              className="no-spinner h-12 border-slate-100 bg-slate-50/50 text-lg font-bold focus-visible:ring-rose-500"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              className="text-slate-600"
+              onClick={() => {
+                setIncrementAmount(1)
+                setIsDecrementModalOpen(false)
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button className="bg-rose-500 text-white hover:bg-rose-600" onClick={() => void decrementCards()} disabled={isDecrementing}>
+              {isDecrementing ? "Atualizando..." : "Confirmar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

@@ -37,13 +37,11 @@ public class GoalService {
         Goal goal = goalRepository.findByManager(manager).orElseGet(() -> {
             Goal created = new Goal();
             created.setManager(manager);
-            created.setConfigured(false);
             return created;
         });
 
         goal.setTargetCards(dto.targetCards());
         goal.setUpdatedAt(LocalDateTime.now());
-        goal.setConfigured(true);
 
         Goal saved = goalRepository.save(goal);
         return toDTO(saved);
@@ -57,14 +55,12 @@ public class GoalService {
             created.setManager(manager);
             created.setTargetCards(DEFAULT_TARGET_CARDS);
             created.setUpdatedAt(LocalDateTime.now());
-            created.setConfigured(false);
             return goalRepository.save(created);
         });
 
         if (goal.getTargetCards() == null || goal.getTargetCards() <= 0) {
             goal.setTargetCards(DEFAULT_TARGET_CARDS);
             goal.setUpdatedAt(LocalDateTime.now());
-            goal.setConfigured(false);
             goal = goalRepository.save(goal);
         }
 
@@ -72,7 +68,7 @@ public class GoalService {
     }
 
     public GoalResponseDTO toDTO(Goal goal) {
-        return new GoalResponseDTO(goal.getTargetCards(), goal.getUpdatedAt(), goal.isConfigured());
+        return new GoalResponseDTO(goal.getTargetCards(), goal.getUpdatedAt());
     }
 
     private User validateUserToken(UUID token) {
