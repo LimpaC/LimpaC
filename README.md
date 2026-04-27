@@ -32,7 +32,9 @@
 <details>
 <summary>Entrega 03</summary>
 
+- Histórias implementadas: Exportar Relatório (UH8) // Histórico de resultados (UH5)
 - **Screencast**: <https://youtu.be/v3XoNv8gNI0>
+- Screencast Testes Automatizados (Com Mockito): <https://youtu.be/cjgus-Or-dI>
 - **BugTracker**:
 <img width="1623" height="969" alt="image" src="https://github.com/user-attachments/assets/802261f4-0490-42f0-8b71-cb18f29a0655" />
 </details>
