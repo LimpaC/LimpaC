@@ -1025,25 +1025,26 @@ export default function Calcular() {
                 </div>
               )}
 
-              <Button
-                onClick={() => void generateReport()}
-                disabled={isGeneratingReport || (!result && history.length === 0 && !hasHistory)}
-                className="h-11 w-full rounded-2xl bg-slate-950 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(15,23,42,0.8)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800"
-              >
-                {isGeneratingReport ? (
-                  <>
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    Gerando PDF
-                  </>
-                ) : (
-                  <>
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Gerar relatório
-                  </>
-                )}
-              </Button>
             </CardContent>
           </Card>
+
+          <Button
+            onClick={() => void generateReport()}
+            disabled={isGeneratingReport || (!result && history.length === 0 && !hasHistory)}
+            className="h-11 w-full rounded-2xl bg-slate-950 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(15,23,42,0.8)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800"
+          >
+            {isGeneratingReport ? (
+              <>
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                Gerando PDF
+              </>
+            ) : (
+              <>
+                <FileDown className="mr-2 h-4 w-4" />
+                Gerar relatório
+              </>
+            )}
+          </Button>
         </section>
       </div>
 

@@ -7,14 +7,14 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.metrics")
 public class CalculationMetricsProperties {
 
-    private double co2PerCard = 0.044;
+    private double co2PerCard = 0.0471;
     private double plasticPerCard = 0.00714;
     private double treesPerCard = 0.0342;
     private double waterPerCard = 12.857;
     private double energyPerCard = 0.514;
-    private double materialCostPerCardBrl = 0.56;
-    private double manufacturingCostPerCardBrl = 4.34;
-    private double shippingCostPerCardBrl = 3.70;
+    private double materialCostPerCardBrl = 0.49;
+    private double manufacturingCostPerCardBrl = 1.58;
+    private double shippingCostPerCardBrl = 0.70;
 
     public double getCo2PerCard() {
         return co2PerCard;

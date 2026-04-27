@@ -12,40 +12,6 @@
   </a>
 </div>
 
-## Como rodar a aplicação
-
-### Pré-requisitos
-
-- `Bun` 1.3+
-- `Java 17`
-- `PostgreSQL` configurado para o backend
-
-### Instalação
-
-```bash
-bun install
-```
-
-### Rodando o projeto inteiro
-
-```bash
-bun dev
-```
-
-### Rodando cada parte separadamente
-
-```bash
-bun --cwd apps/backend dev
-bun --cwd apps/web dev
-```
-
-### Build e checagem de tipos
-
-```bash
-bun build
-bun check-types
-```
-
 ## Entregas
 
 <details>
@@ -66,10 +32,11 @@ bun check-types
 <details>
 <summary>Entrega 03</summary>
 
-- **Screencast**: <https://youtu.be/4Fil7E6QE3w>
+- **Screencast**: <https://youtu.be/v3XoNv8gNI0>
 - **BugTracker**:
 <img width="1623" height="969" alt="image" src="https://github.com/user-attachments/assets/802261f4-0490-42f0-8b71-cb18f29a0655" />
 </details>
+
 
 ## Visão Geral
 
@@ -101,6 +68,64 @@ Empresas não possuem ferramentas específicas para medir o impacto ambiental da
 
 Com a crescente demanda por práticas sustentáveis, organizações precisam demonstrar benefícios ambientais concretos para stakeholders, relatórios e iniciativas de compliance.
 
+## Rodando o projeto
+### Pré-requisitos
+
+- `Bun` 1.3+
+- `Java 17`
+- `PostgreSQL` configurado para o backend
+
+### Instalação
+
+```bash
+bun install
+```
+
+### Rodando o projeto inteiro
+
+```bash
+bun dev
+```
+
+### Rodando cada parte separadamente
+
+```bash
+bun --cwd apps/backend dev
+bun --cwd apps/web dev
+```
+
+### Build
+
+```bash
+bun build
+
+### Frontend
+
+Crie `apps/web/.env.local` com:
+
+```bash
+VITE_API_URL=http://localhost:8080
+```
+
+Caso não faça, o front usa `http://localhost:8080` por padrão.
+
+### Backend
+
+O backend lê as configurações do PostgreSQL em `apps/backend/src/main/resources/application.properties`.
+
+Os valores usados no projeto são:
+
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/limpac_db
+spring.datasource.username=postgres
+spring.datasource.password=123
+spring.datasource.driver-class-name=org.postgresql.Driver
+app.cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173
+```
+
+Se o seu banco tiver outro host, porta, nome, usuário ou senha, ajuste 
+
+```
 ## Bugtracker
 
 Estamos usando a aba issues do GitHub como bugtracker, segue em anexo:

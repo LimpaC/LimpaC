@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 
 public record GoalResponseDTO(
         Integer targetCards,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        boolean configured
 ) {
 }
