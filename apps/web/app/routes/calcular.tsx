@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react"
+import NumberFlow from "@number-flow/react"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
+import { cn } from "~/lib/utils"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
@@ -7,23 +11,17 @@ import { Progress } from "~/components/ui/progress"
 import {
   CreditCard,
   Banknote,
-  Wallet,
-  TreeDeciduous,
   Droplets,
   Zap,
-  Factory,
-  Truck,
-  HelpCircle,
-  Settings,
+  CirclePlus,
+  ArrowDownRight,
+  ArrowUpRight,
+  Clock3,
+  FileDown,
+  LoaderCircle,
 } from "lucide-react"
 import { useTokenStore } from "~/lib/store"
 import { Skeleton } from "~/components/ui/skeleton"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
 import {
   Dialog,
   DialogContent,
@@ -37,7 +35,6 @@ type CalculationResult = {
   id: string
   cards: number
   co2Impact: number
-  treesPreserved: number
   waterSaved: number
   energySaved: number
   moneySaved: number
@@ -59,6 +56,11 @@ type MetricsResult = {
 type GoalResult = {
   targetCards: number
   updatedAt: string
+  configured: boolean
+}
+
+type TransactionHistoryEntry = CalculationResult & {
+  deltaCards: number
 }
 
 type DashboardState = {
@@ -69,10 +71,146 @@ type DashboardState = {
   progressPct: number
 }
 
+type MetricCardProps = {
+  icon: ReactNode
+  eyebrow: string
+  title: string
+  value: number
+  isLoading: boolean
+  format: NumberFlowFormat
+  suffix?: string
+  helper: string
+  valueClassName?: string
+  loadingWidth?: string
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080"
 const DEFAULT_CARDS = 350
 const GOAL_MIN = 1
 const GOAL_MAX = 5_000_000
+const integerFormatter = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 0,
+})
+const historyDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+})
+type NumberFlowFormat = NonNullable<ComponentProps<typeof NumberFlow>["format"]>
+
+const moneyFlowFormat = {
+  style: "currency",
+  currency: "BRL",
+  maximumFractionDigits: 2,
+} as const satisfies NumberFlowFormat
+const integerFlowFormat = {
+  maximumFractionDigits: 0,
+} as const satisfies NumberFlowFormat
+
+function clampInteger(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, Math.floor(value)))
+}
+
+function buildTransactionHistory(entries: CalculationResult[]) {
+  const ordered = [...entries].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  )
+
+  return ordered.map((entry, index) => {
+    const previous = ordered[index - 1]
+    return {
+      ...entry,
+      deltaCards: previous ? entry.cards - previous.cards : entry.cards,
+    }
+  })
+}
+
+function formatCurrency(value: number) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value))
+}
+
+function AnimatedMetricValue({
+  value,
+  isLoading,
+  format,
+  suffix,
+  valueClassName,
+  loadingWidth = "w-28",
+}: {
+  value: number
+  isLoading: boolean
+  format: NumberFlowFormat
+  suffix?: string
+  valueClassName?: string
+  loadingWidth?: string
+}) {
+  if (isLoading) {
+    return <Skeleton className={cn("h-12 rounded-xl bg-slate-100/80", loadingWidth)} />
+  }
+
+  return (
+    <div className={cn("font-heading tabular-nums tracking-[-0.04em] text-slate-950", valueClassName)}>
+      <NumberFlow value={value} format={format} locales="pt-BR" suffix={suffix} />
+    </div>
+  )
+}
+
+function MetricCard({
+  icon,
+  eyebrow,
+  title,
+  value,
+  isLoading,
+  format,
+  suffix,
+  helper,
+  valueClassName,
+  loadingWidth,
+}: MetricCardProps) {
+  return (
+    <Card className="border-white/70 bg-white/90 shadow-[0_18px_36px_-28px_rgba(15,23,42,0.28)] backdrop-blur-xl">
+      <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100/80">
+              {icon}
+            </div>
+            <div className="min-w-0">
+              {eyebrow ? (
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                  {eyebrow}
+                </p>
+              ) : null}
+            <h3 className="mt-1 text-xs font-medium text-slate-700">{title}</h3>
+          </div>
+        </div>
+
+        <AnimatedMetricValue
+          value={value}
+          isLoading={isLoading}
+          format={format}
+          suffix={suffix}
+          valueClassName={valueClassName ?? "text-2xl sm:text-[2rem] leading-none"}
+          loadingWidth={loadingWidth}
+        />
+
+        {helper ? <p className="text-xs leading-relaxed text-slate-500">{helper}</p> : null}
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function Calcular() {
   const token = useTokenStore((state) => state.token)
@@ -83,19 +221,23 @@ export default function Calcular() {
   const [metrics, setMetrics] = useState<MetricsResult | null>(null)
   const [hasHistory, setHasHistory] = useState(false)
   const [goalDraft, setGoalDraft] = useState<number>(GOAL_MAX)
-  const [incrementAmount, setIncrementAmount] = useState<number>(1)
+  const [goalConfigured, setGoalConfigured] = useState(false)
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false)
-  const [isIncrementModalOpen, setIsIncrementModalOpen] = useState(false)
-  const [isDecrementModalOpen, setIsDecrementModalOpen] = useState(false)
+  const [isEditCardsModalOpen, setIsEditCardsModalOpen] = useState(false)
+  const [editedCards, setEditedCards] = useState<number>(DEFAULT_CARDS)
+  const [history, setHistory] = useState<TransactionHistoryEntry[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false)
-  const [isIncrementing, setIsIncrementing] = useState(false)
-  const [isDecrementing, setIsDecrementing] = useState(false)
+  const [isSavingCards, setIsSavingCards] = useState(false)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
+    const raf = requestAnimationFrame(() => setIsReady(true))
+    return () => cancelAnimationFrame(raf)
   }, [])
 
   const resolveToken = () => {
@@ -131,8 +273,10 @@ export default function Calcular() {
     setResult(data.latestCalculation)
     setHasHistory(data.hasHistory)
     setProgress(data.progressPct)
+    setGoalConfigured(data.goal.configured)
     if (data.latestCalculation) {
       setCards(data.latestCalculation.cards)
+      setEditedCards(data.latestCalculation.cards)
     }
   }
 
@@ -148,16 +292,38 @@ export default function Calcular() {
     setError(null)
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/calculation/state?token=${encodeURIComponent(currentToken)}`
-      )
+      const [stateResult, historyResult] = await Promise.allSettled([
+        fetch(
+          `${API_BASE_URL}/calculation/state?token=${encodeURIComponent(currentToken)}`
+        ),
+        fetch(
+          `${API_BASE_URL}/calculation/history?token=${encodeURIComponent(currentToken)}`
+        ),
+      ])
 
-      if (!response.ok) {
+      if (stateResult.status !== "fulfilled") {
         throw new Error("Nao foi possivel carregar os dados atuais.")
       }
 
-      const data = (await response.json()) as DashboardState
+      const stateResponse = stateResult.value
+
+      if (!stateResponse.ok) {
+        throw new Error("Nao foi possivel carregar os dados atuais.")
+      }
+
+      const data = (await stateResponse.json()) as DashboardState
       applyState(data)
+
+      if (historyResult.status === "fulfilled") {
+        const historyResponse = historyResult.value
+
+        if (historyResponse.status === 204) {
+          setHistory([])
+        } else if (historyResponse.ok) {
+          const historyData = (await historyResponse.json()) as CalculationResult[]
+          setHistory(buildTransactionHistory(historyData).reverse())
+        }
+      }
     } catch {
       setError("Nao foi possivel conectar o front ao backend no momento.")
     } finally {
@@ -172,16 +338,38 @@ export default function Calcular() {
       throw new Error("Token do dispositivo ainda nao foi inicializado.")
     }
 
-    const response = await fetch(
-      `${API_BASE_URL}/calculation/state?token=${encodeURIComponent(currentToken)}`
-    )
+    const [stateResult, historyResult] = await Promise.allSettled([
+      fetch(
+        `${API_BASE_URL}/calculation/state?token=${encodeURIComponent(currentToken)}`
+      ),
+      fetch(
+        `${API_BASE_URL}/calculation/history?token=${encodeURIComponent(currentToken)}`
+      ),
+    ])
 
-    if (!response.ok) {
+    if (stateResult.status !== "fulfilled") {
       throw new Error("Nao foi possivel sincronizar os dados mais recentes.")
     }
 
-    const data = (await response.json()) as DashboardState
+    const stateResponse = stateResult.value
+
+    if (!stateResponse.ok) {
+      throw new Error("Nao foi possivel sincronizar os dados mais recentes.")
+    }
+
+    const data = (await stateResponse.json()) as DashboardState
     applyState(data)
+
+    if (historyResult.status === "fulfilled") {
+      const historyResponse = historyResult.value
+
+      if (historyResponse.status === 204) {
+        setHistory([])
+      } else if (historyResponse.ok) {
+        const historyData = (await historyResponse.json()) as CalculationResult[]
+        setHistory(buildTransactionHistory(historyData).reverse())
+      }
+    }
   }
 
   const calculateImpact = async (cardAmount: number) => {
@@ -216,21 +404,21 @@ export default function Calcular() {
     }
   }
 
-  const incrementCards = async () => {
+  const incrementCards = async (amount: number) => {
     const currentToken = resolveToken()
 
     if (!currentToken) {
       setError("Token do dispositivo ainda nao foi inicializado.")
-      return
+      return false
     }
 
-    const amount = Math.floor(incrementAmount)
-    if (amount < 1) {
+    const normalized = clampInteger(amount, 1, GOAL_MAX)
+    if (normalized < 1) {
       setError("Informe uma quantidade valida para adicionar.")
-      return
+      return false
     }
 
-    setIsIncrementing(true)
+    setIsSavingCards(true)
     setError(null)
 
     try {
@@ -239,7 +427,7 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, addCards: amount }),
+        body: JSON.stringify({ token: currentToken, addCards: normalized }),
       })
 
       if (!response.ok) {
@@ -247,35 +435,35 @@ export default function Calcular() {
       }
 
       await refreshState()
-      setIncrementAmount(1)
-      setIsIncrementModalOpen(false)
+      return true
     } catch {
       setError("Nao foi possivel conectar o front ao backend no momento.")
+      return false
     } finally {
-      setIsIncrementing(false)
+      setIsSavingCards(false)
     }
   }
 
-  const decrementCards = async () => {
+  const decrementCards = async (amount: number) => {
     const currentToken = resolveToken()
 
     if (!currentToken) {
       setError("Token do dispositivo ainda nao foi inicializado.")
-      return
+      return false
     }
 
-    const amount = Math.floor(incrementAmount)
-    if (amount < 1) {
+    const normalized = clampInteger(amount, 1, GOAL_MAX)
+    if (normalized < 1) {
       setError("Informe uma quantidade valida para remover.")
-      return
+      return false
     }
 
-    if (displayedCards - amount < 1) {
+    if (displayedCards - normalized < 1) {
       setError("A quantidade final de cartoes nao pode ser menor que 1.")
-      return
+      return false
     }
 
-    setIsDecrementing(true)
+    setIsSavingCards(true)
     setError(null)
 
     try {
@@ -284,7 +472,7 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, removeCards: amount }),
+        body: JSON.stringify({ token: currentToken, removeCards: normalized }),
       })
 
       if (!response.ok) {
@@ -292,12 +480,34 @@ export default function Calcular() {
       }
 
       await refreshState()
-      setIncrementAmount(1)
-      setIsDecrementModalOpen(false)
+      return true
     } catch {
       setError("Nao foi possivel conectar o front ao backend no momento.")
+      return false
     } finally {
-      setIsDecrementing(false)
+      setIsSavingCards(false)
+    }
+  }
+
+  const openEditCardsModal = () => {
+    setEditedCards(displayedCards)
+    setIsEditCardsModalOpen(true)
+  }
+
+  const saveEditedCards = async () => {
+    const normalized = clampInteger(editedCards, 1, GOAL_MAX)
+    const delta = normalized - displayedCards
+
+    if (delta === 0) {
+      setIsEditCardsModalOpen(false)
+      return
+    }
+
+    const success =
+      delta > 0 ? await incrementCards(delta) : await decrementCards(Math.abs(delta))
+
+    if (success) {
+      setIsEditCardsModalOpen(false)
     }
   }
 
@@ -309,7 +519,7 @@ export default function Calcular() {
       return
     }
 
-    const normalized = Math.max(GOAL_MIN, Math.min(GOAL_MAX, Math.floor(goalDraft)))
+    const normalized = clampInteger(goalDraft, GOAL_MIN, GOAL_MAX)
 
     setIsUpdatingGoal(true)
     setError(null)
@@ -336,6 +546,174 @@ export default function Calcular() {
     }
   }
 
+  const generateReport = async () => {
+    if (!result && history.length === 0 && !hasHistory) {
+      setError("Nao ha dados suficientes para gerar o relatorio.")
+      return
+    }
+
+    setIsGeneratingReport(true)
+    setError(null)
+
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      })
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const marginX = 16
+      const contentWidth = pageWidth - marginX * 2
+
+      doc.setFillColor(248, 250, 252)
+      doc.rect(0, 0, pageWidth, pageHeight, "F")
+
+      doc.setFillColor(190, 18, 60)
+      doc.roundedRect(marginX, 14, contentWidth, 28, 6, 6, "F")
+      doc.setTextColor(255, 255, 255)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(18)
+      doc.text("LimpaC", marginX + 8, 26)
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "normal")
+      doc.text("Relatório de impacto e transações", marginX + 8, 33)
+
+      const generatedAt = new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "long",
+        timeStyle: "short",
+      }).format(new Date())
+      doc.text(`Gerado em ${generatedAt}`, pageWidth - marginX - 8, 26, { align: "right" })
+
+      const summaryY = 52
+      const summaryCards = [
+        {
+          label: "Cartões atuais",
+          value: integerFormatter.format(displayedCards),
+          note: goalConfigured ? `${integerFormatter.format(goal)} cartões de meta` : "Meta não configurada",
+        },
+        {
+          label: "Economia total",
+          value: formatCurrency(moneySaved),
+          note: "Acumulado no período",
+        },
+        {
+          label: "Água preservada",
+          value: `${integerFormatter.format(waterSaved)} L`,
+          note: "Estimativa consolidada",
+        },
+        {
+          label: "CO2 evitado",
+          value: pollutionAvoided.toLocaleString("pt-BR", {
+            maximumFractionDigits: 2,
+          }),
+          note: "Em kg de CO2e",
+        },
+      ]
+
+      const cardWidth = (contentWidth - 6) / 2
+      const cardHeight = 24
+
+      summaryCards.forEach((item, index) => {
+        const x = marginX + (index % 2) * (cardWidth + 6)
+        const y = summaryY + Math.floor(index / 2) * (cardHeight + 5)
+        doc.setFillColor(255, 255, 255)
+        doc.setDrawColor(226, 232, 240)
+        doc.roundedRect(x, y, cardWidth, cardHeight, 4, 4, "FD")
+        doc.setTextColor(100, 116, 139)
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "normal")
+        doc.text(item.label, x + 6, y + 8)
+        doc.setTextColor(15, 23, 42)
+        doc.setFontSize(13)
+        doc.setFont("helvetica", "bold")
+        doc.text(item.value, x + 6, y + 16)
+        doc.setTextColor(100, 116, 139)
+        doc.setFontSize(8)
+        doc.setFont("helvetica", "normal")
+        doc.text(item.note, x + 6, y + 21)
+      })
+
+      const metricsStartY = summaryY + 2 * (cardHeight + 5) + 6
+      doc.setTextColor(15, 23, 42)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(13)
+      doc.text("Indicadores ambientais", marginX, metricsStartY)
+
+      autoTable(doc, {
+        startY: metricsStartY + 4,
+        head: [["Indicador", "Valor"]],
+        body: [
+          ["Plástico evitado", `${metrics?.plasticPerCard ? integerFormatter.format(Math.round(displayedCards * metrics.plasticPerCard)) : "-"} kg`],
+          ["Água por cartão", metrics ? `${metrics.waterPerCard.toFixed(2)} L` : "-"],
+          ["Energia por cartão", metrics ? `${metrics.energyPerCard.toFixed(2)} kWh` : "-"],
+          ["CO2 por cartão", metrics ? `${metrics.co2PerCard.toFixed(4)} kg` : "-"],
+          ["Custo material", metrics ? formatCurrency(metrics.materialCostPerCardBrl) : "-"],
+          ["Custo fabricação", metrics ? formatCurrency(metrics.manufacturingCostPerCardBrl) : "-"],
+          ["Custo envio", metrics ? formatCurrency(metrics.shippingCostPerCardBrl) : "-"],
+        ],
+        theme: "grid",
+        styles: {
+          font: "helvetica",
+          fontSize: 9,
+          textColor: [15, 23, 42],
+          fillColor: [255, 255, 255],
+          lineColor: [226, 232, 240],
+        },
+        headStyles: {
+          fillColor: [190, 18, 60],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: { left: marginX, right: marginX },
+      })
+
+      const historyRows = buildTransactionHistory(history)
+        .slice()
+        .reverse()
+        .map((entry) => [
+          formatDateTime(entry.createdAt),
+          entry.deltaCards >= 0
+            ? `+${integerFormatter.format(entry.deltaCards)}`
+            : `-${integerFormatter.format(Math.abs(entry.deltaCards))}`,
+          integerFormatter.format(entry.cards),
+          formatCurrency(entry.moneySaved),
+        ])
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : metricsStartY + 70,
+        head: [["Data", "Variação", "Total", "Economia"]],
+        body: historyRows.length > 0 ? historyRows : [["Sem histórico", "-", "-", "-"]],
+        theme: "grid",
+        styles: {
+          font: "helvetica",
+          fontSize: 8.5,
+          textColor: [15, 23, 42],
+          fillColor: [255, 255, 255],
+          lineColor: [226, 232, 240],
+        },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        margin: { left: marginX, right: marginX },
+      })
+
+      doc.save("limpac-relatorio.pdf")
+    } catch {
+      setError("Nao foi possivel gerar o relatorio em PDF.")
+    } finally {
+      setIsGeneratingReport(false)
+    }
+  }
+
   useEffect(() => {
     if (!isClient) {
       return
@@ -344,344 +722,346 @@ export default function Calcular() {
     void loadState()
   }, [isClient, token])
 
+  useEffect(() => {
+    const openGoal = () => setIsGoalModalOpen(true)
+    const openCards = () => setIsEditCardsModalOpen(true)
+
+    window.addEventListener("limpac:open-goal", openGoal as EventListener)
+    window.addEventListener("limpac:open-cards", openCards as EventListener)
+
+    return () => {
+      window.removeEventListener("limpac:open-goal", openGoal as EventListener)
+      window.removeEventListener("limpac:open-cards", openCards as EventListener)
+    }
+  }, [])
+
   if (!isClient) return null
 
   const displayedCards = result?.cards ?? cards
-  const calculatedCards = result?.cards ?? 0
   const moneySaved = result?.moneySaved ?? 0
-  const treesPreserved = result?.treesPreserved ?? 0
-  const waterSaved = Math.round(result?.waterSaved ?? 0).toLocaleString("pt-BR")
-  const energySaved = Math.round(result?.energySaved ?? 0)
-  const materialCostPerCard = metrics?.materialCostPerCardBrl ?? 0
-  const manufacturingCostPerCard = metrics?.manufacturingCostPerCardBrl ?? 0
-  const shippingCostPerCard = metrics?.shippingCostPerCardBrl ?? 0
-  const monetaryEquivalentMaterial = calculatedCards * materialCostPerCard
-  const monetaryEquivalentManufacturing = calculatedCards * manufacturingCostPerCard
-  const monetaryEquivalentShipping = calculatedCards * shippingCostPerCard
+  const waterSaved = result?.waterSaved ?? 0
+  const pollutionAvoided = result?.co2Impact ?? 0
+  const pollutionPerCard = metrics?.co2PerCard ?? 0
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      maximumFractionDigits: 2,
-    }).format(value)
-
-  const EquivalenceValue = ({
-    value,
-    label,
-    isLoading,
-    valueClassName,
-  }: {
-    value: string | number
-    label: string
-    isLoading: boolean
-    valueClassName?: string
-  }) => {
-    return (
-      <div className="space-y-0">
-        {isLoading ? (
-          <Skeleton className="my-1 h-[32px] w-[60px] bg-slate-100" />
-        ) : (
-          <p className={`text-[28px] leading-none font-black text-[#0f172a] ${valueClassName ?? ""}`}>
-            {value}
-          </p>
-        )}
-        <p className="text-[11px] text-slate-400">{label}</p>
-      </div>
-    )
-  }
-
+  const shellClass = cn(
+    "border-white/70 bg-white/85 shadow-[0_16px_38px_-30px_rgba(15,23,42,0.26)] backdrop-blur-xl",
+    "transition-[border-color,opacity] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
+  )
+  const enterClass = isReady ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
   return (
-    <div className="min-h-screen bg-slate-50/50 font-sans text-[#0f172a]">
-      <header className="flex h-16 items-center justify-between border-b bg-white px-8">
-        <div className="flex items-center gap-1 text-2xl font-bold text-rose-500">
-          Limpa
-          <span className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-rose-500 text-[10px]">
-            ©
-          </span>
-        </div>
-        <nav className="hidden items-center gap-6 lg:flex">
-          <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-400">
-            <HelpCircle className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" className="h-9 px-3 text-sm font-semibold text-slate-600">
-            Dashboard
-          </Button>
-          <Button variant="ghost" className="h-9 px-3 text-sm font-semibold text-slate-600">
-            Relatórios
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-slate-600">
-                <Settings className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setIsGoalModalOpen(true)}>
-                Ajustar Meta
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </nav>
-      </header>
+    <>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-8">
+        <section
+          className={cn("fade-rise space-y-6", enterClass)}
+          style={{ transitionDelay: "90ms" }}
+        >
+          <Card className={cn(shellClass, "rounded-[28px]")}>
+            <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="mt-2 font-heading text-2xl font-semibold tracking-[-0.04em] text-slate-950">
+                    Cartões digitais utilizados
+                  </h2>
+                </div>
+              </div>
 
-      <main className="mx-auto max-w-6xl px-8 py-10">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-          <div className="space-y-8">
-            <div className="space-y-5">
-              <h1 className="text-[40px] leading-[1.05] font-black tracking-tight text-[#0f172a]">
-                Calcular impacto ambiental da transação física vs digital
-              </h1>
-              <p className="max-w-md text-[16px] leading-relaxed text-slate-500">
-                Avalie como a migração para o digital reduz a emissão de
-                poluentes e o consumo de recursos naturais em suas operações
-                diárias.
-              </p>
-            </div>
+              {!hasHistory ? (
+                <>
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="cards"
+                      className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                    >
+                      Quantidade
+                    </Label>
+                    <div className="relative">
+                      <CreditCard className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="cards"
+                        type="number"
+                        min={1}
+                        value={cards}
+                        onChange={(e) =>
+                          setCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))
+                        }
+                        className="no-spinner h-12 rounded-2xl border-slate-200 bg-slate-50/80 pl-12 text-base font-medium text-slate-950 shadow-none focus-visible:ring-rose-500"
+                      />
+                    </div>
+                  </div>
 
-            <Card className="max-w-md border-slate-100 bg-white shadow-none">
-              <CardContent className="space-y-5 p-6 py-4">
-                {!hasHistory ? (
-                  <>
+                  <Button
+                    onClick={() => void calculateImpact(cards)}
+                    disabled={isLoading}
+                    className="h-12 w-full rounded-2xl bg-rose-500 text-[11px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(244,63,94,0.95)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
+                  >
+                    {isLoading ? "Calculando..." : "Atualizar economia"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                     <div className="space-y-2">
-                      <Label
-                        htmlFor="cards"
-                        className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase"
-                      >
-                        Quantidade de cartões digitais utilizados
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        Contagem atual
                       </Label>
-                      <div className="relative">
-                        <CreditCard className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          id="cards"
-                          type="number"
-                          min={1}
-                          value={cards}
-                          onChange={(e) => setCards(Math.max(1, Math.floor(Number(e.target.value) || 0)))}
-                          className="no-spinner h-12 border-slate-100 bg-slate-50/50 pl-12 text-lg font-bold focus-visible:ring-rose-500"
-                        />
+                      <div className="font-heading text-[2.2rem] font-semibold tracking-[-0.06em] text-slate-950 sm:text-[2.4rem]">
+                        <NumberFlow value={displayedCards} format={integerFlowFormat} locales="pt-BR" />
                       </div>
                     </div>
-                    <Button
-                      onClick={() => void calculateImpact(cards)}
-                      disabled={isLoading}
-                      className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600"
+                  </div>
+
+                  <Button
+                    onClick={openEditCardsModal}
+                    disabled={isSavingCards}
+                    className="h-11 w-full rounded-2xl bg-rose-500 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-none transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
+                  >
+                    {isSavingCards ? "Atualizando..." : "Editar cartões"}
+                  </Button>
+                </>
+              )}
+
+              {error ? (
+                <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                  {error}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className={cn(shellClass, "rounded-[28px]")}>
+            <CardContent className="space-y-5 p-6 sm:px-7 sm:py-1">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Clock3 className="h-4 w-4 text-rose-500" />
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Histórico
+                    </p>
+                  </div>
+                  <h2 className="font-heading text-xl font-semibold tracking-[-0.04em] text-slate-950">
+                    Transações recentes
+                  </h2>
+                </div>
+                <p className="text-right text-xs leading-5 text-slate-500">
+                  {history.length > 0
+                    ? `${history.length} registros`
+                    : "Sem transações ainda"}
+                </p>
+              </div>
+
+              {history.length > 0 ? (
+                <div className="space-y-2">
+                  {history.slice(0, 5).map((entry) => {
+                    const isIncrease = entry.deltaCards >= 0
+                    const isInitial = entry.deltaCards === entry.cards
+                    const deltaLabel = isInitial
+                      ? "Inicial"
+                      : `${isIncrease ? "+" : "-"}${integerFormatter.format(
+                          Math.abs(entry.deltaCards)
+                        )}`
+
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 px-4 py-3"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div
+                            className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl ring-1",
+                              isIncrease
+                                ? "bg-emerald-50 text-emerald-600 ring-emerald-100"
+                                : "bg-rose-50 text-rose-500 ring-rose-100"
+                            )}
+                          >
+                            {isIncrease ? (
+                              <ArrowUpRight className="h-4 w-4" />
+                            ) : (
+                              <ArrowDownRight className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-slate-900">
+                              {isInitial ? "Cálculo inicial" : "Ajuste de cartões"}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {historyDateFormatter.format(new Date(entry.createdAt))}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-sm font-semibold tabular-nums text-slate-950">
+                            {deltaLabel}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            total {integerFormatter.format(entry.cards)} cartões
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex min-h-[9rem] flex-col items-center justify-center gap-3 rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 px-4 text-center">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-400 ring-1 ring-slate-200">
+                    <Clock3 className="h-4 w-4" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-900">Nenhum lançamento registrado</p>
+                    <p className="text-xs leading-5 text-slate-500">
+                      Assim que você calcular ou editar os cartões, o histórico aparece aqui.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+            </CardContent>
+          </Card>
+        </section>
+
+        <section
+          className={cn("fade-rise space-y-6", enterClass)}
+          style={{ transitionDelay: "150ms" }}
+        >
+          <MetricCard
+            icon={<Banknote className="h-5 w-5" />}
+            eyebrow=""
+            title="Economia total"
+            value={moneySaved}
+            isLoading={isLoading}
+            format={moneyFlowFormat}
+            helper=""
+            valueClassName="text-[2rem] sm:text-[2.4rem] leading-none"
+            loadingWidth="w-44"
+          />
+
+          <Card className={cn(shellClass, "rounded-[28px]")}>
+            <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-heading text-xl font-semibold tracking-[-0.04em] text-slate-950">
+                    Impacto preservado
+                  </h2>
+                </div>
+              </div>
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Droplets className="h-4 w-4 text-rose-500" />
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Água
+                    </p>
+                  </div>
+                  <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
+                    <NumberFlow value={waterSaved} format={integerFlowFormat} locales="pt-BR" />
+                  </div>
+                  <p className="text-sm leading-6 text-slate-600">Litros economizados</p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-rose-500" />
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Poluição
+                    </p>
+                  </div>
+                  <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
+                    <NumberFlow
+                      value={pollutionAvoided}
+                      format={{ maximumFractionDigits: 2 }}
+                      locales="pt-BR"
+                    />
+                  </div>
+                  <p className="text-sm leading-6 text-slate-600">CO2e evitado</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(shellClass, "rounded-[28px]")}>
+            <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
+              {goalConfigured ? (
+                <div className="mx-auto flex max-w-md flex-col items-center space-y-3 text-center">
+                  <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
+                    <NumberFlow value={goal} format={integerFlowFormat} locales="pt-BR" /> cartões
+                  </div>
+
+                  <div className="relative w-full pt-6">
+                    <div
+                      className="absolute top-0 z-10 -translate-x-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[0_8px_20px_-16px_rgba(15,23,42,0.45)]"
+                      style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
                     >
-                      {isLoading ? "Calculando..." : "Atualizar Economia"}
-                    </Button>
+                      {Math.round(progress).toLocaleString("pt-BR")}%
+                    </div>
+
+                    <Progress
+                      value={progress}
+                      className="h-4 rounded-full bg-slate-100"
+                      indicatorClassName="bg-rose-500"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="mx-auto flex min-h-[10rem] max-w-md flex-col items-center justify-center gap-4 py-2 text-center">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100/80">
+                    <CirclePlus className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-heading text-lg font-semibold tracking-[-0.04em] text-slate-950">
+                      Nenhuma meta definida
+                    </h3>
+                    <p className="max-w-sm text-sm leading-6 text-slate-600">
+                      Defina uma meta para ter mais controle sobre o período.
+                    </p>
+                  </div>
+                  <Button
+                    className="h-10 rounded-2xl bg-rose-500 px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white hover:bg-rose-600"
+                    onClick={() => setIsGoalModalOpen(true)}
+                  >
+                    Adicionar meta
+                  </Button>
+                </div>
+              )}
+
+              <Button
+                onClick={() => void generateReport()}
+                disabled={isGeneratingReport || (!result && history.length === 0 && !hasHistory)}
+                className="h-11 w-full rounded-2xl bg-slate-950 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(15,23,42,0.8)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800"
+              >
+                {isGeneratingReport ? (
+                  <>
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    Gerando PDF
                   </>
                 ) : (
                   <>
-                    <div className="space-y-1">
-                      <Label className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase">
-                        Quantidade de cartões digitais utilizados
-                      </Label>
-                      <p className="text-[28px] font-black text-[#0f172a]">
-                        {displayedCards.toLocaleString("pt-BR")}
-                      </p>
-                    </div>
-                    <Button
-                      onClick={() => setIsIncrementModalOpen(true)}
-                      disabled={isIncrementing || isDecrementing}
-                      className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600"
-                    >
-                      {isIncrementing ? "Atualizando..." : "Adicionar cartões"}
-                    </Button>
-                    <Button
-                      onClick={() => setIsDecrementModalOpen(true)}
-                      disabled={isIncrementing || isDecrementing}
-                      className="h-12 w-full bg-slate-200 text-[11px] font-bold tracking-[0.05em] text-slate-700 uppercase shadow-none hover:bg-slate-300"
-                    >
-                      {isDecrementing ? "Atualizando..." : "Remover cartões"}
-                    </Button>
+                    <FileDown className="mr-2 h-4 w-4" />
+                    Gerar relatório
                   </>
                 )}
-                {error ? <p className="text-sm text-rose-500">{error}</p> : null}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            <div className="grid-row-2 grid gap-4 lg:grid-cols-1">
-              <Card className="border-slate-100 bg-white py-2! shadow-none">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                      <Banknote className="h-5 w-5 text-slate-400" />
-                    </div>
-                    <span className="text-[11px] font-bold tracking-[0.05em] text-[#1e293b] uppercase">
-                      Economia em Dinheiro
-                    </span>
-                  </div>
-                  <div className="mt-4 space-y-0.5">
-                    <p className="text-[10px] font-medium text-slate-400 uppercase">
-                      Economia Total
-                    </p>
-                    {isLoading ? (
-                      <Skeleton className="h-[40px] w-[150px] bg-slate-100" />
-                    ) : (
-                      <p className="text-[28px] font-black text-[#0f172a]">{formatCurrency(moneySaved)}</p>
-                    )}
-                    <p className="text-[11px] text-slate-400">Material + Manufatura + Envio</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="border-slate-100 bg-white shadow-none">
-              <CardContent className="p-6 py-4">
-                <h3 className="text-[12px] font-bold tracking-[0.05em] text-[#1e293b] uppercase">
-                  Equivalências Ambientais
-                </h3>
-                <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:justify-between lg:gap-0">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                        <TreeDeciduous className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Árvores
-                      </span>
-                    </div>
-                    <EquivalenceValue
-                      value={treesPreserved}
-                      label="Árvores preservadas"
-                      isLoading={isLoading}
-                    />
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                        <Droplets className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Água
-                      </span>
-                    </div>
-                    <EquivalenceValue value={waterSaved} label="L economizados" isLoading={isLoading} />
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                        <Zap className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">
-                        Energia
-                      </span>
-                    </div>
-                    <EquivalenceValue value={energySaved} label="kWh poupados" isLoading={isLoading} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-100 bg-white shadow-none">
-              <CardContent className="p-6 py-4">
-                <h3 className="text-[12px] font-bold tracking-[0.05em] text-[#1e293b] uppercase">
-                  Equivalências Financeiras
-                </h3>
-                <div className="mt-6 flex flex-col gap-8 lg:flex-row lg:justify-between lg:gap-4">
-                  <div className="min-w-0 space-y-4 lg:w-[32%]">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                        <Wallet className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Material</span>
-                    </div>
-                    <EquivalenceValue
-                      value={formatCurrency(monetaryEquivalentMaterial)}
-                      label={`R$ ${materialCostPerCard.toFixed(2)} por cartão`}
-                      isLoading={isLoading}
-                      valueClassName="text-[22px] leading-tight lg:text-[24px]"
-                    />
-                  </div>
-                  <div className="min-w-0 space-y-4 lg:w-[32%]">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                        <Factory className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Manufatura</span>
-                    </div>
-                    <EquivalenceValue
-                      value={formatCurrency(monetaryEquivalentManufacturing)}
-                      label={`R$ ${manufacturingCostPerCard.toFixed(2)} por cartão`}
-                      isLoading={isLoading}
-                      valueClassName="text-[22px] leading-tight lg:text-[24px]"
-                    />
-                  </div>
-                  <div className="min-w-0 space-y-4 lg:w-[32%]">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex h-8 w-8 items-center justify-center rounded bg-slate-50">
-                        <Truck className="h-4 w-4 text-slate-400" />
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Envio</span>
-                    </div>
-                    <EquivalenceValue
-                      value={formatCurrency(monetaryEquivalentShipping)}
-                      label={`R$ ${shippingCostPerCard.toFixed(2)} por cartão`}
-                      isLoading={isLoading}
-                      valueClassName="text-[22px] leading-tight lg:text-[24px]"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-100 bg-white shadow-none">
-              <CardContent className="p-6 py-5">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <h3 className="text-xl leading-tight font-black text-[#0f172a]">
-                      Meta
-                    </h3>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-baseline justify-end gap-1">
-                      <span className="text-[28px] font-black text-[#0f172a]">
-                        {Math.round(goal).toLocaleString("pt-BR")}
-                      </span>
-                      <span className="text-[11px] font-bold text-[#0f172a]">cartões</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-8 space-y-3">
-                  <Progress
-                    value={progress}
-                    className="h-6 rounded-md bg-slate-100"
-                    indicatorClassName="bg-red-600"
-                  />
-                  <div className="flex justify-between text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-                    <span>Início do Ano</span>
-                    <span>Meta: {Math.round(goal).toLocaleString("pt-BR")}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Button className="h-12 w-full bg-rose-500 text-[11px] font-bold tracking-[0.05em] text-white uppercase shadow-none hover:bg-rose-600">
-              Ver Relatório
-            </Button>
-            <p className="text-right text-[11px] text-slate-400">
-              Baseado em {calculatedCards.toLocaleString("pt-BR")} cartoes.
-            </p>
-          </div>
-        </div>
-      </main>
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+      </div>
 
       <Dialog open={isGoalModalOpen} onOpenChange={setIsGoalModalOpen}>
-        <DialogContent>
+        <DialogContent className="w-[92vw] max-w-2xl rounded-[28px] border-white/70 bg-white/95 shadow-[0_30px_110px_-70px_rgba(15,23,42,0.55)] backdrop-blur-xl">
           <DialogHeader>
-              <DialogTitle>Definir Meta</DialogTitle>
-              <DialogDescription>
-                Ajuste sua meta de cartões digitais para refletir o objetivo do período.
-              </DialogDescription>
-            </DialogHeader>
+            <DialogTitle className="font-heading text-xl tracking-[-0.04em] text-slate-950">
+              Definir meta
+            </DialogTitle>
+            <DialogDescription className="text-slate-600">
+              Ajuste sua meta de cartões digitais para refletir o objetivo do período.
+            </DialogDescription>
+          </DialogHeader>
 
           <div className="mt-6 space-y-4">
             <Label
               htmlFor="goal-cards"
-              className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase"
+              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
             >
               Meta de cartões
             </Label>
@@ -691,18 +1071,20 @@ export default function Calcular() {
               min={GOAL_MIN}
               max={GOAL_MAX}
               value={goalDraft}
-              onChange={(e) => setGoalDraft(Math.max(GOAL_MIN, Math.floor(Number(e.target.value) || 0)))}
-              className="no-spinner h-12 border-slate-100 bg-slate-50/50 text-lg font-bold focus-visible:ring-rose-500"
+              onChange={(e) =>
+                setGoalDraft(clampInteger(Number(e.target.value) || 0, GOAL_MIN, GOAL_MAX))
+              }
+              className="no-spinner h-12 rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
             />
-            <p className="text-right text-sm font-semibold text-slate-500">
-              {Math.round(goalDraft).toLocaleString("pt-BR")} cartões
+            <p className="text-right text-xs font-medium text-slate-500">
+              {integerFormatter.format(goalDraft)} cartões
             </p>
           </div>
 
           <DialogFooter>
             <Button
               variant="ghost"
-              className="text-slate-600"
+              className="rounded-2xl px-4 text-slate-600 hover:bg-slate-50"
               onClick={() => {
                 setGoalDraft(goal)
                 setIsGoalModalOpen(false)
@@ -710,94 +1092,66 @@ export default function Calcular() {
             >
               Cancelar
             </Button>
-            <Button className="bg-rose-500 text-white hover:bg-rose-600" onClick={() => void updateGoal()} disabled={isUpdatingGoal}>
-              {isUpdatingGoal ? "Salvando..." : "Salvar Meta"}
+            <Button
+              className="rounded-2xl bg-rose-500 px-4 text-white transition-all duration-300 ease-out hover:bg-rose-600"
+              onClick={() => void updateGoal()}
+              disabled={isUpdatingGoal}
+            >
+              {isUpdatingGoal ? "Salvando..." : "Salvar meta"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isIncrementModalOpen} onOpenChange={setIsIncrementModalOpen}>
-        <DialogContent>
+      <Dialog open={isEditCardsModalOpen} onOpenChange={setIsEditCardsModalOpen}>
+        <DialogContent className="w-[92vw] max-w-4xl rounded-[28px] border-white/70 bg-white/95 shadow-[0_30px_110px_-70px_rgba(15,23,42,0.55)] backdrop-blur-xl">
           <DialogHeader>
-            <DialogTitle>Adicionar cartões</DialogTitle>
-            <DialogDescription>
-               Informe quantos cartões digitais foram utilizados desde a última atualização.
+            <DialogTitle className="font-heading text-xl tracking-[-0.04em] text-slate-950">
+              Editar cartões
+            </DialogTitle>
+            <DialogDescription className="text-slate-600">
+              Escreva a quantidade final de cartões digitais que deseja registrar.
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-4 space-y-2">
-            <Label htmlFor="increment-cards" className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase">
-              Quantidade a adicionar
+            <Label
+              htmlFor="edit-cards"
+              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+            >
+              Quantidade final
             </Label>
             <Input
-              id="increment-cards"
+              id="edit-cards"
               type="number"
               min={1}
-              value={incrementAmount}
-              onChange={(e) => setIncrementAmount(Math.max(1, Math.floor(Number(e.target.value) || 0)))}
-              className="no-spinner h-12 border-slate-100 bg-slate-50/50 text-lg font-bold focus-visible:ring-rose-500"
+              value={editedCards}
+              onChange={(e) => setEditedCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))}
+              className="no-spinner h-12 w-full rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
             />
           </div>
 
           <DialogFooter>
             <Button
               variant="ghost"
-              className="text-slate-600"
+              className="rounded-2xl px-4 text-slate-600 hover:bg-slate-50"
               onClick={() => {
-                setIncrementAmount(1)
-                setIsIncrementModalOpen(false)
+                setEditedCards(displayedCards)
+                setIsEditCardsModalOpen(false)
               }}
             >
               Cancelar
             </Button>
-            <Button className="bg-rose-500 text-white hover:bg-rose-600" onClick={() => void incrementCards()} disabled={isIncrementing}>
-              {isIncrementing ? "Atualizando..." : "Confirmar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isDecrementModalOpen} onOpenChange={setIsDecrementModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Remover cartões</DialogTitle>
-            <DialogDescription>
-              Informe quantos cartões precisam ser removidos da contagem atual.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="mt-4 space-y-2">
-            <Label htmlFor="decrement-cards" className="text-[11px] font-bold tracking-[0.05em] text-slate-500 uppercase">
-              Quantidade a remover
-            </Label>
-            <Input
-              id="decrement-cards"
-              type="number"
-              min={1}
-              value={incrementAmount}
-              onChange={(e) => setIncrementAmount(Math.max(1, Math.floor(Number(e.target.value) || 0)))}
-              className="no-spinner h-12 border-slate-100 bg-slate-50/50 text-lg font-bold focus-visible:ring-rose-500"
-            />
-          </div>
-
-          <DialogFooter>
             <Button
-              variant="ghost"
-              className="text-slate-600"
-              onClick={() => {
-                setIncrementAmount(1)
-                setIsDecrementModalOpen(false)
-              }}
+              className="rounded-2xl bg-rose-500 px-4 text-white transition-all duration-300 ease-out hover:bg-rose-600"
+              onClick={() => void saveEditedCards()}
+              disabled={isSavingCards}
             >
-              Cancelar
-            </Button>
-            <Button className="bg-rose-500 text-white hover:bg-rose-600" onClick={() => void decrementCards()} disabled={isDecrementing}>
-              {isDecrementing ? "Atualizando..." : "Confirmar"}
+              {isSavingCards ? "Atualizando..." : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
