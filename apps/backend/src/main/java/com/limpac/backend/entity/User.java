@@ -4,11 +4,14 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+        @Index(name = "idx_users_email", columnList = "email", unique = true)
+})
 public class User {
 
     @Id
@@ -16,32 +19,48 @@ public class User {
     private UUID id;
 
     @NotBlank
-    @Column(name = "full_name")
-    private String fullName;
+    @Column(name = "name")
+    private String name;
 
     @NotBlank
     @Column(name = "cnpj")
     private String cnpj;
 
     @Email
-    @Column(name = "email")
+    @Column(name = "email", unique = true, nullable = false)
     private String email;
 
     @NotBlank
-    @Column(name = "phone")
-    private String phone;
+    @Column(name = "password_hash")
+    private String passwordHash;
 
-    private UUID token;
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
 
-    public User(UUID id, String fullName, String cnpj, String email, String phone) {
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    public User(UUID id, String name, String cnpj, String email, String passwordHash) {
         this.id = id;
-        this.fullName = fullName;
+        this.name = name;
         this.cnpj = cnpj;
         this.email = email;
-        this.phone = phone;
+        this.passwordHash = passwordHash;
     }
 
     public User() {
+    }
+
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 
     public UUID getId() {
@@ -52,12 +71,12 @@ public class User {
         this.id = id;
     }
 
-    public String getFullName() {
-        return fullName;
+    public String getName() {
+        return name;
     }
 
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
+    public void setName(String name) {
+        this.name = name;
     }
 
     public String getCnpj() {
@@ -76,20 +95,28 @@ public class User {
         this.email = email;
     }
 
-    public String getPhone() {
-        return phone;
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
-    public void setPhone(String phone) {
-        this.phone = phone;
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 
-    public UUID getToken() {
-        return token;
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
     }
 
-    public void setToken(UUID token) {
-        this.token = token;
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     @Override
