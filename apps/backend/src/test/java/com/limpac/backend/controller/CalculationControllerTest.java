@@ -8,22 +8,26 @@ import com.limpac.backend.dto.CalculationRequestDTO;
 import com.limpac.backend.dto.CalculationResponseDTO;
 import com.limpac.backend.dto.DashboardStateResponseDTO;
 import com.limpac.backend.dto.GoalResponseDTO;
+import com.limpac.backend.security.AuthenticatedUser;
 import com.limpac.backend.service.CalculationService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -36,20 +40,32 @@ public class CalculationControllerTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private CalculationService calculationService;
     private MockMvc mockMvc;
+    private final UUID userId = UUID.randomUUID();
+    private final AuthenticatedUser authenticatedUser = new AuthenticatedUser(userId, "maria@example.com", "hash");
 
     @BeforeEach
     void configurarMockMvc() {
         calculationService = Mockito.mock(CalculationService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new CalculationController(calculationService)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new CalculationController(calculationService))
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
+                .build();
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(authenticatedUser, null, authenticatedUser.getAuthorities())
+        );
+    }
+
+    @AfterEach
+    void limparSeguranca() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
     @DisplayName("retorna 201 e chama o servico ao criar simulacao")
     void deveRetornar201EChamarServicoAoCriarSimulacao() throws Exception {
-        UUID token = UUID.randomUUID();
-        CalculationRequestDTO request = new CalculationRequestDTO(10.0, token);
+        UUID organizationId = UUID.randomUUID();
+        CalculationRequestDTO request = new CalculationRequestDTO(10.0, organizationId);
         CalculationResponseDTO response = response(10.0);
-        Mockito.when(calculationService.save(Mockito.any())).thenReturn(response);
+        Mockito.when(calculationService.save(Mockito.any(CalculationRequestDTO.class), Mockito.eq(userId))).thenReturn(response);
 
         mockMvc.perform(
                         post("/calculation")
@@ -61,43 +77,43 @@ public class CalculationControllerTest {
                 .andExpect(jsonPath("$.cards").value(10.0));
 
         ArgumentCaptor<CalculationRequestDTO> captor = ArgumentCaptor.forClass(CalculationRequestDTO.class);
-        Mockito.verify(calculationService).save(captor.capture());
-        assertEquals(token, captor.getValue().token());
+        Mockito.verify(calculationService).save(captor.capture(), Mockito.eq(userId));
+        assertEquals(organizationId, captor.getValue().organizationId());
         assertEquals(10.0, captor.getValue().cards());
     }
 
     @Test
     @DisplayName("retorna 200 com historico quando existir historico")
     void deveRetornar200ComHistoricoQuandoExistirHistorico() throws Exception {
-        UUID token = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
         List<CalculationResponseDTO> historico = List.of(response(10.0), response(25.0));
-        Mockito.when(calculationService.findAll(token)).thenReturn(historico);
+        Mockito.when(calculationService.findAll(organizationId, userId)).thenReturn(historico);
 
-        mockMvc.perform(get("/calculation/history").param("token", token.toString()))
+        mockMvc.perform(get("/calculation/history").param("organizationId", organizationId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].cards").value(10.0))
                 .andExpect(jsonPath("$[1].cards").value(25.0));
 
-        Mockito.verify(calculationService).findAll(token);
+        Mockito.verify(calculationService).findAll(organizationId, userId);
     }
 
     @Test
     @DisplayName("retorna 204 quando o historico estiver vazio")
     void deveRetornar204QuandoHistoricoEstiverVazio() throws Exception {
-        UUID token = UUID.randomUUID();
-        Mockito.when(calculationService.findAll(token)).thenReturn(List.of());
+        UUID organizationId = UUID.randomUUID();
+        Mockito.when(calculationService.findAll(organizationId, userId)).thenReturn(List.of());
 
-        mockMvc.perform(get("/calculation/history").param("token", token.toString()))
+        mockMvc.perform(get("/calculation/history").param("organizationId", organizationId.toString()))
                 .andExpect(status().isNoContent());
 
-        Mockito.verify(calculationService).findAll(token);
+        Mockito.verify(calculationService).findAll(organizationId, userId);
     }
 
     @Test
     @DisplayName("retorna 200 ao consultar o estado")
     void deveRetornar200AoConsultarEstado() throws Exception {
-        UUID token = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
         DashboardStateResponseDTO state = new DashboardStateResponseDTO(
                 new GoalResponseDTO(350, LocalDateTime.parse("2026-04-27T10:15:30"), true),
                 response(25.0),
@@ -105,24 +121,24 @@ public class CalculationControllerTest {
                 true,
                 7.14
         );
-        Mockito.when(calculationService.state(token)).thenReturn(state);
+        Mockito.when(calculationService.state(organizationId, userId)).thenReturn(state);
 
-        mockMvc.perform(get("/calculation/state").param("token", token.toString()))
+        mockMvc.perform(get("/calculation/state").param("organizationId", organizationId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().json(objectMapper.writeValueAsString(state)))
                 .andExpect(jsonPath("$.goal.targetCards").value(350))
                 .andExpect(jsonPath("$.hasHistory").value(true));
 
-        Mockito.verify(calculationService).state(token);
+        Mockito.verify(calculationService).state(organizationId, userId);
     }
 
     @Test
     @DisplayName("retorna 201 ao incrementar")
     void deveRetornar201AoIncrementar() throws Exception {
-        UUID token = UUID.randomUUID();
-        CalculationIncrementRequestDTO request = new CalculationIncrementRequestDTO(token, 5);
+        UUID organizationId = UUID.randomUUID();
+        CalculationIncrementRequestDTO request = new CalculationIncrementRequestDTO(organizationId, 5);
         CalculationResponseDTO response = response(15.0);
-        Mockito.when(calculationService.increment(Mockito.any())).thenReturn(response);
+        Mockito.when(calculationService.increment(Mockito.any(CalculationIncrementRequestDTO.class), Mockito.eq(userId))).thenReturn(response);
 
         mockMvc.perform(
                         post("/calculation/increment")
@@ -133,18 +149,18 @@ public class CalculationControllerTest {
                 .andExpect(content().json(objectMapper.writeValueAsString(response)));
 
         ArgumentCaptor<CalculationIncrementRequestDTO> captor = ArgumentCaptor.forClass(CalculationIncrementRequestDTO.class);
-        Mockito.verify(calculationService).increment(captor.capture());
-        assertEquals(token, captor.getValue().token());
+        Mockito.verify(calculationService).increment(captor.capture(), Mockito.eq(userId));
+        assertEquals(organizationId, captor.getValue().organizationId());
         assertEquals(5, captor.getValue().addCards());
     }
 
     @Test
     @DisplayName("retorna 201 ao diminuir")
     void deveRetornar201AoDiminuir() throws Exception {
-        UUID token = UUID.randomUUID();
-        CalculationDecrementRequestDTO request = new CalculationDecrementRequestDTO(token, 2);
+        UUID organizationId = UUID.randomUUID();
+        CalculationDecrementRequestDTO request = new CalculationDecrementRequestDTO(organizationId, 2);
         CalculationResponseDTO response = response(8.0);
-        Mockito.when(calculationService.decrement(Mockito.any())).thenReturn(response);
+        Mockito.when(calculationService.decrement(Mockito.any(CalculationDecrementRequestDTO.class), Mockito.eq(userId))).thenReturn(response);
 
         mockMvc.perform(
                         post("/calculation/decrement")
@@ -155,8 +171,8 @@ public class CalculationControllerTest {
                 .andExpect(content().json(objectMapper.writeValueAsString(response)));
 
         ArgumentCaptor<CalculationDecrementRequestDTO> captor = ArgumentCaptor.forClass(CalculationDecrementRequestDTO.class);
-        Mockito.verify(calculationService).decrement(captor.capture());
-        assertEquals(token, captor.getValue().token());
+        Mockito.verify(calculationService).decrement(captor.capture(), Mockito.eq(userId));
+        assertEquals(organizationId, captor.getValue().organizationId());
         assertEquals(2, captor.getValue().removeCards());
     }
 

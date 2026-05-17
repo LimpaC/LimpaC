@@ -24,10 +24,10 @@ public class Calculation {
     private LocalDateTime createdAt;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User manager;
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
 
-    public Calculation(UUID id, Double cards, Double co2Impact, Double plasticSaved, Integer treesPreserved, Double waterSaved, Double energySaved, Double moneySaved, LocalDateTime createdAt, User manager) {
+    public Calculation(UUID id, Double cards, Double co2Impact, Double plasticSaved, Integer treesPreserved, Double waterSaved, Double energySaved, Double moneySaved, LocalDateTime createdAt, Organization organization) {
         this.id = id;
         this.cards = cards;
         this.co2Impact = co2Impact;
@@ -37,7 +37,7 @@ public class Calculation {
         this.energySaved = energySaved;
         this.moneySaved = moneySaved;
         this.createdAt = createdAt;
-        this.manager = manager;
+        this.organization = organization;
     }
 
     public Calculation() {
@@ -115,11 +115,11 @@ public class Calculation {
         this.createdAt = createdAt;
     }
 
-    public User getManager() {
-        return manager;
+    public Organization getOrganization() {
+        return organization;
     }
 
-    public void setManager(User manager) {
-        this.manager = manager;
+    public void setOrganization(Organization organization) {
+        this.organization = organization;
     }
 }

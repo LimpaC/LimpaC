@@ -5,11 +5,10 @@ import com.limpac.backend.dto.CalculationDecrementRequestDTO;
 import com.limpac.backend.dto.CalculationRequestDTO;
 import com.limpac.backend.dto.CalculationResponseDTO;
 import com.limpac.backend.entity.Calculation;
-import com.limpac.backend.entity.Goal;
-import com.limpac.backend.entity.User;
+import com.limpac.backend.entity.Organization;
 import com.limpac.backend.repository.CalculationRepository;
-import com.limpac.backend.repository.GoalRepository;
-import com.limpac.backend.repository.UserRepository;
+import com.limpac.backend.repository.OrganizationRepository;
+import org.mockito.Mockito;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,9 +27,10 @@ class CalculationServiceTest {
     @Test
     @DisplayName("calcula os impactos esperados ao salvar")
     void saveComputesTheExpectedImpactMetrics() {
-        UUID token = UUID.randomUUID();
-        User manager = new User();
-        manager.setToken(token);
+        UUID userId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = new Organization();
+        organization.setId(organizationId);
 
         CalculationMetricsProperties metrics = new CalculationMetricsProperties();
         metrics.setCo2PerCard(1.5);
@@ -50,21 +50,17 @@ class CalculationServiceTest {
             }
             default -> defaultValue(method.getReturnType());
         });
-        UserRepository userRepository = proxy(UserRepository.class, (proxy, method, args) -> switch (method.getName()) {
-            case "findByToken" -> Optional.of(manager);
-            default -> defaultValue(method.getReturnType());
-        });
-        GoalService goalService = new GoalService(
-                proxy(GoalRepository.class, (proxy, method, args) -> switch (method.getName()) {
-                    case "findByManager" -> Optional.empty();
-                    case "save" -> args[0];
-                    default -> defaultValue(method.getReturnType());
-                }),
-                userRepository
-        );
+        OrganizationService organizationService = Mockito.mock(OrganizationService.class);
+        Mockito.when(organizationService.getOwnedOrganization(organizationId, userId)).thenReturn(organization);
 
-        CalculationService service = new CalculationService(calculationRepository, userRepository, goalService, metrics);
-        CalculationResponseDTO calculation = service.save(new CalculationRequestDTO(10.0, token));
+        CalculationService service = new CalculationService(
+                calculationRepository,
+                proxy(OrganizationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
+                organizationService,
+                Mockito.mock(GoalService.class),
+                metrics
+        );
+        CalculationResponseDTO calculation = service.save(new CalculationRequestDTO(10.0, organizationId), userId);
 
         assertEquals(15.0, calculation.co2Impact(), 0.0001);
         assertEquals(2.5, calculation.plasticSaved(), 0.0001);
@@ -77,40 +73,62 @@ class CalculationServiceTest {
     @Test
     @DisplayName("rejeita remocao que deixaria menos de um cartao")
     void decrementRejectsRequestsThatWouldDropBelowOneCard() {
-        UUID token = UUID.randomUUID();
-        User manager = new User();
-        manager.setToken(token);
+        UUID userId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = new Organization();
+        organization.setId(organizationId);
 
         Calculation latest = new Calculation();
         latest.setCards(1.0);
         latest.setCreatedAt(LocalDateTime.now());
-        latest.setManager(manager);
+        latest.setOrganization(organization);
 
         CalculationRepository calculationRepository = proxy(CalculationRepository.class, (proxy, method, args) -> switch (method.getName()) {
-            case "findTopByManagerOrderByCreatedAtDesc" -> Optional.of(latest);
+            case "findTopByOrganizationOrderByCreatedAtDesc" -> Optional.of(latest);
             default -> defaultValue(method.getReturnType());
         });
-        UserRepository userRepository = proxy(UserRepository.class, (proxy, method, args) -> switch (method.getName()) {
-            case "findByTokenForUpdate" -> Optional.of(manager);
-            default -> defaultValue(method.getReturnType());
-        });
-        GoalService goalService = new GoalService(
-                proxy(GoalRepository.class, (proxy, method, args) -> switch (method.getName()) {
-                    case "findByManager" -> Optional.empty();
-                    case "save" -> args[0];
-                    default -> defaultValue(method.getReturnType());
-                }),
-                userRepository
-        );
+        OrganizationService organizationService = Mockito.mock(OrganizationService.class);
+        Mockito.when(organizationService.getOwnedOrganization(organizationId, userId)).thenReturn(organization);
 
-        CalculationService service = new CalculationService(calculationRepository, userRepository, goalService, new CalculationMetricsProperties());
+        CalculationService service = new CalculationService(
+                calculationRepository,
+                proxy(OrganizationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
+                organizationService,
+                Mockito.mock(GoalService.class),
+                new CalculationMetricsProperties()
+        );
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> service.decrement(new CalculationDecrementRequestDTO(token, 1))
+                () -> service.decrement(new CalculationDecrementRequestDTO(organizationId, 1), userId)
         );
 
         assertEquals(422, exception.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("propaga bloqueio quando organizacao nao pertence ao usuario")
+    void saveRejectsForeignOrganization() {
+        UUID userId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        OrganizationService organizationService = Mockito.mock(OrganizationService.class);
+        Mockito.when(organizationService.getOwnedOrganization(organizationId, userId))
+                .thenThrow(new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Organização não autorizada."));
+
+        CalculationService service = new CalculationService(
+                proxy(CalculationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
+                proxy(OrganizationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
+                organizationService,
+                Mockito.mock(GoalService.class),
+                new CalculationMetricsProperties()
+        );
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> service.save(new CalculationRequestDTO(10.0, organizationId), userId)
+        );
+
+        assertEquals(403, exception.getStatusCode().value());
     }
 
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {

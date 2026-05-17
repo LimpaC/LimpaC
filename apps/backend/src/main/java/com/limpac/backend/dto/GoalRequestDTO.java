@@ -7,8 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import java.util.UUID;
 
 public record GoalRequestDTO(
-        @NotNull(message = "O token do usuário é obrigatório")
-        UUID token,
+        @NotNull(message = "A organização é obrigatória")
+        UUID organizationId,
 
         @NotNull(message = "A meta é obrigatória")
         @Min(value = 1, message = "A meta mínima é 1")

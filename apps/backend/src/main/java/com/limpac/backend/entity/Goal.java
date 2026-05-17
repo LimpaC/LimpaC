@@ -20,8 +20,8 @@ public class Goal {
     private boolean configured;
 
     @OneToOne
-    @JoinColumn(name = "user_id", unique = true)
-    private User manager;
+    @JoinColumn(name = "organization_id", unique = true)
+    private Organization organization;
 
     public Goal() {
     }
@@ -58,11 +58,11 @@ public class Goal {
         this.configured = configured;
     }
 
-    public User getManager() {
-        return manager;
+    public Organization getOrganization() {
+        return organization;
     }
 
-    public void setManager(User manager) {
-        this.manager = manager;
+    public void setOrganization(Organization organization) {
+        this.organization = organization;
     }
 }

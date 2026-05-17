@@ -2,9 +2,9 @@ package com.limpac.backend.service;
 
 import com.limpac.backend.dto.GoalRequestDTO;
 import com.limpac.backend.entity.Goal;
-import com.limpac.backend.entity.User;
+import com.limpac.backend.entity.Organization;
 import com.limpac.backend.repository.GoalRepository;
-import com.limpac.backend.repository.UserRepository;
+import org.mockito.Mockito;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,44 +24,62 @@ class GoalServiceTest {
 
     @Test
     @DisplayName("cria meta padrao quando nao existe")
-    void getOrCreateByTokenCreatesDefaultGoalWhenMissing() {
-        UUID token = UUID.randomUUID();
-        User manager = new User();
-        manager.setToken(token);
+    void getOrCreateByOrganizationCreatesDefaultGoalWhenMissing() {
+        Organization organization = new Organization();
+        organization.setId(UUID.randomUUID());
 
-        UserRepository userRepository = proxy(UserRepository.class, (proxy, method, args) -> switch (method.getName()) {
-            case "findByToken" -> Optional.of(manager);
-            default -> defaultValue(method.getReturnType());
-        });
         GoalRepository goalRepository = proxy(GoalRepository.class, (proxy, method, args) -> switch (method.getName()) {
-            case "findByManager" -> Optional.empty();
+            case "findByOrganization" -> Optional.empty();
             case "save" -> args[0];
             default -> defaultValue(method.getReturnType());
         });
 
-        GoalService service = new GoalService(goalRepository, userRepository);
-        Goal goal = service.getOrCreateByToken(token);
+        GoalService service = new GoalService(goalRepository, Mockito.mock(OrganizationService.class));
+        Goal goal = service.getOrCreateByOrganization(organization);
 
         assertEquals(GoalService.DEFAULT_TARGET_CARDS, goal.getTargetCards());
         assertFalse(goal.isConfigured());
         assertNotNull(goal.getUpdatedAt());
+        assertEquals(organization, goal.getOrganization());
     }
 
     @Test
     @DisplayName("rejeita meta menor ou igual a zero")
     void upsertRejectsNonPositiveGoalTargets() {
-        UUID token = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
         GoalService service = new GoalService(
                 proxy(GoalRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
-                proxy(UserRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType()))
+                Mockito.mock(OrganizationService.class)
         );
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> service.upsert(new GoalRequestDTO(token, 0))
+                () -> service.upsert(new GoalRequestDTO(organizationId, 0), UUID.randomUUID())
         );
 
         assertEquals(422, exception.getStatusCode().value());
+    }
+
+    @Test
+    @DisplayName("atualiza meta da organizacao selecionada")
+    void upsertStoresGoalForSelectedOrganization() {
+        UUID userId = UUID.randomUUID();
+        UUID organizationId = UUID.randomUUID();
+        Organization organization = new Organization();
+        organization.setId(organizationId);
+
+        OrganizationService organizationService = Mockito.mock(OrganizationService.class);
+        Mockito.when(organizationService.getOwnedOrganization(organizationId, userId)).thenReturn(organization);
+        GoalRepository goalRepository = proxy(GoalRepository.class, (proxy, method, args) -> switch (method.getName()) {
+            case "findByOrganization" -> Optional.empty();
+            case "save" -> args[0];
+            default -> defaultValue(method.getReturnType());
+        });
+
+        GoalService service = new GoalService(goalRepository, organizationService);
+        var response = service.upsert(new GoalRequestDTO(organizationId, 500), userId);
+
+        assertEquals(500, response.targetCards());
     }
 
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {

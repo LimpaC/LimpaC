@@ -3,9 +3,8 @@ package com.limpac.backend.service;
 import com.limpac.backend.dto.GoalRequestDTO;
 import com.limpac.backend.dto.GoalResponseDTO;
 import com.limpac.backend.entity.Goal;
-import com.limpac.backend.entity.User;
+import com.limpac.backend.entity.Organization;
 import com.limpac.backend.repository.GoalRepository;
-import com.limpac.backend.repository.UserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,23 +19,23 @@ public class GoalService {
     public static final int DEFAULT_TARGET_CARDS = 350;
 
     private final GoalRepository goalRepository;
-    private final UserRepository userRepository;
+    private final OrganizationService organizationService;
 
-    public GoalService(GoalRepository goalRepository, UserRepository userRepository) {
+    public GoalService(GoalRepository goalRepository, OrganizationService organizationService) {
         this.goalRepository = goalRepository;
-        this.userRepository = userRepository;
+        this.organizationService = organizationService;
     }
 
     @Transactional
-    public GoalResponseDTO upsert(GoalRequestDTO dto) {
+    public GoalResponseDTO upsert(GoalRequestDTO dto, UUID ownerId) {
         if (dto.targetCards() <= 0) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, "A meta deve ser maior que zero.");
         }
 
-        User manager = validateUserToken(dto.token());
-        Goal goal = goalRepository.findByManager(manager).orElseGet(() -> {
+        Organization organization = organizationService.getOwnedOrganization(dto.organizationId(), ownerId);
+        Goal goal = goalRepository.findByOrganization(organization).orElseGet(() -> {
             Goal created = new Goal();
-            created.setManager(manager);
+            created.setOrganization(organization);
             created.setConfigured(false);
             return created;
         });
@@ -50,11 +49,10 @@ public class GoalService {
     }
 
     @Transactional
-    public Goal getOrCreateByToken(UUID token) {
-        User manager = validateUserToken(token);
-        Goal goal = goalRepository.findByManager(manager).orElseGet(() -> {
+    public Goal getOrCreateByOrganization(Organization organization) {
+        Goal goal = goalRepository.findByOrganization(organization).orElseGet(() -> {
             Goal created = new Goal();
-            created.setManager(manager);
+            created.setOrganization(organization);
             created.setTargetCards(DEFAULT_TARGET_CARDS);
             created.setUpdatedAt(LocalDateTime.now());
             created.setConfigured(false);
@@ -73,14 +71,5 @@ public class GoalService {
 
     public GoalResponseDTO toDTO(Goal goal) {
         return new GoalResponseDTO(goal.getTargetCards(), goal.getUpdatedAt(), goal.isConfigured());
-    }
-
-    private User validateUserToken(UUID token) {
-        if (token == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "O token do usuário é obrigatório.");
-        }
-
-        return userRepository.findByToken(token)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token de usuário inválido."));
     }
 }

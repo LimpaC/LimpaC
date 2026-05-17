@@ -5,10 +5,12 @@ import com.limpac.backend.dto.CalculationResponseDTO;
 import com.limpac.backend.dto.CalculationIncrementRequestDTO;
 import com.limpac.backend.dto.CalculationDecrementRequestDTO;
 import com.limpac.backend.dto.DashboardStateResponseDTO;
+import com.limpac.backend.security.AuthenticatedUser;
 import com.limpac.backend.service.CalculationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,14 +27,14 @@ public class CalculationController {
     }
 
     @PostMapping
-    public ResponseEntity<CalculationResponseDTO> createSimulation(@RequestBody @Valid CalculationRequestDTO request) {
-        CalculationResponseDTO response = service.save(request);
+    public ResponseEntity<CalculationResponseDTO> createSimulation(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody @Valid CalculationRequestDTO request) {
+        CalculationResponseDTO response = service.save(request, user.id());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping("/history")
-    public ResponseEntity<List<CalculationResponseDTO>> findAll(@RequestParam UUID token) {
-        List<CalculationResponseDTO> response = service.findAll(token);
+    public ResponseEntity<List<CalculationResponseDTO>> findAll(@AuthenticationPrincipal AuthenticatedUser user, @RequestParam UUID organizationId) {
+        List<CalculationResponseDTO> response = service.findAll(organizationId, user.id());
 
         if (response.isEmpty()) {
             return ResponseEntity.noContent().build();
@@ -41,20 +43,20 @@ public class CalculationController {
     }
 
     @PostMapping("/increment")
-    public ResponseEntity<CalculationResponseDTO> increment(@RequestBody @Valid CalculationIncrementRequestDTO request) {
-        CalculationResponseDTO response = service.increment(request);
+    public ResponseEntity<CalculationResponseDTO> increment(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody @Valid CalculationIncrementRequestDTO request) {
+        CalculationResponseDTO response = service.increment(request, user.id());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PostMapping("/decrement")
-    public ResponseEntity<CalculationResponseDTO> decrement(@RequestBody @Valid CalculationDecrementRequestDTO request) {
-        CalculationResponseDTO response = service.decrement(request);
+    public ResponseEntity<CalculationResponseDTO> decrement(@AuthenticationPrincipal AuthenticatedUser user, @RequestBody @Valid CalculationDecrementRequestDTO request) {
+        CalculationResponseDTO response = service.decrement(request, user.id());
         return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping("/state")
-    public ResponseEntity<DashboardStateResponseDTO> state(@RequestParam UUID token) {
-        DashboardStateResponseDTO response = service.state(token);
+    public ResponseEntity<DashboardStateResponseDTO> state(@AuthenticationPrincipal AuthenticatedUser user, @RequestParam UUID organizationId) {
+        DashboardStateResponseDTO response = service.state(organizationId, user.id());
         return ResponseEntity.ok(response);
     }
 }
