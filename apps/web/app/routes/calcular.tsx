@@ -20,7 +20,6 @@ import {
   FileDown,
   LoaderCircle,
 } from "lucide-react"
-import { useTokenStore } from "~/lib/store"
 import { Skeleton } from "~/components/ui/skeleton"
 import {
   Dialog,
@@ -30,6 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
+import { API_BASE_URL, useAuth } from "~/lib/auth"
 
 type CalculationResult = {
   id: string
@@ -84,7 +84,6 @@ type MetricCardProps = {
   loadingWidth?: string
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080"
 const DEFAULT_CARDS = 350
 const GOAL_MIN = 1
 const GOAL_MAX = 5_000_000
@@ -213,7 +212,7 @@ function MetricCard({
 }
 
 export default function Calcular() {
-  const token = useTokenStore((state) => state.token)
+  const { activeOrganizationId } = useAuth()
   const [cards, setCards] = useState<number>(DEFAULT_CARDS)
   const [result, setResult] = useState<CalculationResult | null>(null)
   const [goal, setGoal] = useState<number>(GOAL_MAX)
@@ -240,30 +239,17 @@ export default function Calcular() {
     return () => cancelAnimationFrame(raf)
   }, [])
 
-  const resolveToken = () => {
-    let currentToken = token
-
-    if (!currentToken) {
-      const name = "device_token="
-      const decodedCookie = decodeURIComponent(document.cookie)
-      const ca = decodedCookie.split(";")
-      for (let i = 0; i < ca.length; i++) {
-        let c = ca[i]
-        while (c.charAt(0) === " ") c = c.substring(1)
-        if (c.indexOf(name) === 0) {
-          try {
-            const cookieValue = c.substring(name.length)
-            const parsed = JSON.parse(cookieValue)
-            currentToken = parsed.state?.token || cookieValue
-          } catch {
-            currentToken = c.substring(name.length)
-          }
-          break
-        }
-      }
-    }
-
-    return currentToken
+  const resetDashboardState = () => {
+    setCards(DEFAULT_CARDS)
+    setResult(null)
+    setGoal(GOAL_MAX)
+    setGoalDraft(GOAL_MAX)
+    setMetrics(null)
+    setHasHistory(false)
+    setProgress(0)
+    setGoalConfigured(false)
+    setEditedCards(DEFAULT_CARDS)
+    setHistory([])
   }
 
   const applyState = (data: DashboardState) => {
@@ -277,14 +263,16 @@ export default function Calcular() {
     if (data.latestCalculation) {
       setCards(data.latestCalculation.cards)
       setEditedCards(data.latestCalculation.cards)
+    } else {
+      setCards(DEFAULT_CARDS)
+      setEditedCards(DEFAULT_CARDS)
     }
   }
 
   const loadState = async () => {
-    const currentToken = resolveToken()
-
-    if (!currentToken) {
-      setError("Token do dispositivo ainda nao foi inicializado.")
+    if (!activeOrganizationId) {
+      resetDashboardState()
+      setError("Selecione uma organização para carregar os dados.")
       return
     }
 
@@ -294,10 +282,12 @@ export default function Calcular() {
     try {
       const [stateResult, historyResult] = await Promise.allSettled([
         fetch(
-          `${API_BASE_URL}/calculation/state?token=${encodeURIComponent(currentToken)}`
+          `${API_BASE_URL}/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`,
+          { credentials: "include" }
         ),
         fetch(
-          `${API_BASE_URL}/calculation/history?token=${encodeURIComponent(currentToken)}`
+          `${API_BASE_URL}/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`,
+          { credentials: "include" }
         ),
       ])
 
@@ -322,6 +312,8 @@ export default function Calcular() {
         } else if (historyResponse.ok) {
           const historyData = (await historyResponse.json()) as CalculationResult[]
           setHistory(buildTransactionHistory(historyData).reverse())
+        } else {
+          setHistory([])
         }
       }
     } catch {
@@ -332,18 +324,18 @@ export default function Calcular() {
   }
 
   const refreshState = async () => {
-    const currentToken = resolveToken()
-
-    if (!currentToken) {
-      throw new Error("Token do dispositivo ainda nao foi inicializado.")
+    if (!activeOrganizationId) {
+      throw new Error("Selecione uma organização para sincronizar os dados.")
     }
 
     const [stateResult, historyResult] = await Promise.allSettled([
       fetch(
-        `${API_BASE_URL}/calculation/state?token=${encodeURIComponent(currentToken)}`
+        `${API_BASE_URL}/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`,
+        { credentials: "include" }
       ),
       fetch(
-        `${API_BASE_URL}/calculation/history?token=${encodeURIComponent(currentToken)}`
+        `${API_BASE_URL}/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`,
+        { credentials: "include" }
       ),
     ])
 
@@ -368,15 +360,15 @@ export default function Calcular() {
       } else if (historyResponse.ok) {
         const historyData = (await historyResponse.json()) as CalculationResult[]
         setHistory(buildTransactionHistory(historyData).reverse())
+      } else {
+        setHistory([])
       }
     }
   }
 
   const calculateImpact = async (cardAmount: number) => {
-    const currentToken = resolveToken()
-
-    if (!currentToken) {
-      setError("Token do dispositivo ainda nao foi inicializado.")
+    if (!activeOrganizationId) {
+      setError("Selecione uma organização para calcular o impacto.")
       return
     }
 
@@ -389,7 +381,8 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ cards: Math.max(1, Math.floor(cardAmount)), token: currentToken }),
+        credentials: "include",
+        body: JSON.stringify({ cards: Math.max(1, Math.floor(cardAmount)), organizationId: activeOrganizationId }),
       })
 
       if (!response.ok) {
@@ -405,10 +398,8 @@ export default function Calcular() {
   }
 
   const incrementCards = async (amount: number) => {
-    const currentToken = resolveToken()
-
-    if (!currentToken) {
-      setError("Token do dispositivo ainda nao foi inicializado.")
+    if (!activeOrganizationId) {
+      setError("Selecione uma organização para atualizar os cartões.")
       return false
     }
 
@@ -427,7 +418,8 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, addCards: normalized }),
+        credentials: "include",
+        body: JSON.stringify({ organizationId: activeOrganizationId, addCards: normalized }),
       })
 
       if (!response.ok) {
@@ -445,10 +437,8 @@ export default function Calcular() {
   }
 
   const decrementCards = async (amount: number) => {
-    const currentToken = resolveToken()
-
-    if (!currentToken) {
-      setError("Token do dispositivo ainda nao foi inicializado.")
+    if (!activeOrganizationId) {
+      setError("Selecione uma organização para atualizar os cartões.")
       return false
     }
 
@@ -472,7 +462,8 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, removeCards: normalized }),
+        credentials: "include",
+        body: JSON.stringify({ organizationId: activeOrganizationId, removeCards: normalized }),
       })
 
       if (!response.ok) {
@@ -491,6 +482,7 @@ export default function Calcular() {
 
   const openEditCardsModal = () => {
     setEditedCards(displayedCards)
+    setError(null)
     setIsEditCardsModalOpen(true)
   }
 
@@ -512,10 +504,8 @@ export default function Calcular() {
   }
 
   const updateGoal = async () => {
-    const currentToken = resolveToken()
-
-    if (!currentToken) {
-      setError("Token do dispositivo ainda nao foi inicializado.")
+    if (!activeOrganizationId) {
+      setError("Selecione uma organização para salvar a meta.")
       return
     }
 
@@ -530,7 +520,8 @@ export default function Calcular() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token: currentToken, targetCards: normalized }),
+        credentials: "include",
+        body: JSON.stringify({ organizationId: activeOrganizationId, targetCards: normalized }),
       })
 
       if (!response.ok) {
@@ -719,8 +710,9 @@ export default function Calcular() {
       return
     }
 
+    resetDashboardState()
     void loadState()
-  }, [isClient, token])
+  }, [activeOrganizationId, isClient])
 
   useEffect(() => {
     const openGoal = () => setIsGoalModalOpen(true)
@@ -738,6 +730,9 @@ export default function Calcular() {
   if (!isClient) return null
 
   const displayedCards = result?.cards ?? cards
+  const normalizedEditedCards = clampInteger(editedCards, 1, GOAL_MAX)
+  const editDelta = normalizedEditedCards - displayedCards
+  const isInitialLoading = isLoading && !result && history.length === 0
   const moneySaved = result?.moneySaved ?? 0
   const waterSaved = result?.waterSaved ?? 0
   const pollutionAvoided = result?.co2Impact ?? 0
@@ -765,7 +760,13 @@ export default function Calcular() {
                 </div>
               </div>
 
-              {!hasHistory ? (
+              {isInitialLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-4 w-28 rounded-full bg-slate-100/80" />
+                  <Skeleton className="h-12 w-full rounded-2xl bg-slate-100/80" />
+                  <Skeleton className="h-12 w-full rounded-2xl bg-slate-100/80" />
+                </div>
+              ) : !hasHistory ? (
                 <>
                   <div className="space-y-2">
                     <Label
@@ -794,7 +795,7 @@ export default function Calcular() {
                     disabled={isLoading}
                     className="h-12 w-full rounded-2xl bg-rose-500 text-[11px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(244,63,94,0.95)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
                   >
-                    {isLoading ? "Calculando..." : "Atualizar economia"}
+                    {isLoading ? "Salvando..." : "Salvar contagem inicial"}
                   </Button>
                 </>
               ) : (
@@ -812,7 +813,7 @@ export default function Calcular() {
 
                   <Button
                     onClick={openEditCardsModal}
-                    disabled={isSavingCards}
+                    disabled={isSavingCards || isLoading}
                     className="h-11 w-full rounded-2xl bg-rose-500 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-none transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
                   >
                     {isSavingCards ? "Atualizando..." : "Editar cartões"}
@@ -849,7 +850,13 @@ export default function Calcular() {
                 </p>
               </div>
 
-              {history.length > 0 ? (
+              {isInitialLoading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((item) => (
+                    <Skeleton key={item} className="h-[66px] rounded-2xl bg-slate-100/80" />
+                  ))}
+                </div>
+              ) : history.length > 0 ? (
                 <div className="space-y-2">
                   {history.slice(0, 5).map((entry) => {
                     const isIncrease = entry.deltaCards >= 0
@@ -1130,6 +1137,34 @@ export default function Calcular() {
               onChange={(e) => setEditedCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))}
               className="no-spinner h-12 w-full rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
             />
+            <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Atual
+                </p>
+                <p className="mt-1 font-medium text-slate-950">
+                  {integerFormatter.format(displayedCards)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Nova contagem
+                </p>
+                <p className="mt-1 font-medium text-slate-950">
+                  {integerFormatter.format(normalizedEditedCards)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Variação
+                </p>
+                <p className={cn("mt-1 font-medium", editDelta >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                  {editDelta === 0
+                    ? "Sem alteração"
+                    : `${editDelta > 0 ? "+" : "-"}${integerFormatter.format(Math.abs(editDelta))}`}
+                </p>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -1146,7 +1181,7 @@ export default function Calcular() {
             <Button
               className="rounded-2xl bg-rose-500 px-4 text-white transition-all duration-300 ease-out hover:bg-rose-600"
               onClick={() => void saveEditedCards()}
-              disabled={isSavingCards}
+              disabled={isSavingCards || editDelta === 0}
             >
               {isSavingCards ? "Atualizando..." : "Confirmar"}
             </Button>
