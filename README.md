@@ -39,6 +39,12 @@
 <img width="1623" height="969" alt="image" src="https://github.com/user-attachments/assets/802261f4-0490-42f0-8b71-cb18f29a0655" />
 </details>
 
+<details>
+<summary>Entrega 04</summary>
+
+- **Screencast**: <https://youtu.be/JUv_caNbUvU>
+</details>
+
 
 ## Visão Geral
 
