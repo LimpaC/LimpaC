@@ -43,7 +43,10 @@
 <summary>Entrega 04</summary>
 
 - **Screencast**: <https://youtu.be/JUv_caNbUvU>
-- - Histórias implementadas: Login (UH1) // Cadastro (UH2) //
+- Histórias implementadas: Login (UH1) // Cadastro (UH2) //
+- **Bugtracker**:
+<img width="1283" height="637" alt="{3CA310C4-BD29-4559-A388-5F4D4B1644B8}" src="https://github.com/user-attachments/assets/1e6ae153-6afd-46c1-9a07-25000096ce6f" />
+
 </details>
 
 
