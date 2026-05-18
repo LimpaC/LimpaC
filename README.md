@@ -32,7 +32,7 @@
 <details>
 <summary>Entrega 03</summary>
 
-- Histórias implementadas: Exportar Relatório (UH8) // Histórico de resultados (UH5)
+- Histórias implementadas: Exportar Relatório (UH8) // Histórico de resultados (UH5) // Multiplas Organizações (UH11)
 - **Screencast**: <https://youtu.be/v3XoNv8gNI0>
 - Screencast Testes Automatizados (Com Mockito): <https://youtu.be/cjgus-Or-dI>
 - **BugTracker**:
@@ -43,6 +43,7 @@
 <summary>Entrega 04</summary>
 
 - **Screencast**: <https://youtu.be/JUv_caNbUvU>
+- - Histórias implementadas: Login (UH1) // Cadastro (UH2) //
 </details>
 
 
