@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
+    List<Organization> findAllByOrderByCreatedAtAsc();
     List<Organization> findAllByOwnerIdOrderByCreatedAtAsc(UUID ownerId);
     Optional<Organization> findByIdAndOwnerId(UUID id, UUID ownerId);
 }

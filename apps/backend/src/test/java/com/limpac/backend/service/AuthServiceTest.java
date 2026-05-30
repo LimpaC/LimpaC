@@ -3,6 +3,7 @@ package com.limpac.backend.service;
 import com.limpac.backend.dto.RegisterRequestDTO;
 import com.limpac.backend.entity.Organization;
 import com.limpac.backend.entity.User;
+import com.limpac.backend.entity.UserRole;
 import com.limpac.backend.repository.OrganizationRepository;
 import com.limpac.backend.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -66,8 +67,44 @@ class AuthServiceTest {
         assertEquals("maria@example.com", savedUsers.get(0).getEmail());
         assertEquals("12345678000190", savedUsers.get(0).getCnpj());
         assertEquals("encoded-12345678", savedUsers.get(0).getPasswordHash());
+        assertEquals(UserRole.USER, savedUsers.get(0).getRole());
         assertEquals(savedUsers.get(0), savedOrganizations.get(0).getOwner());
+        assertEquals("USER", session.user().role());
         assertEquals("LimpaC Recife", session.organizations().get(0).name());
+    }
+
+    @Test
+    @DisplayName("Dado uma conta admin, quando faz login, entao a sessao retorna perfil admin sem organizacoes de usuario")
+    void loginReturnsAdminRoleWithoutUserOrganizations() {
+        User admin = new User();
+        admin.setId(UUID.randomUUID());
+        admin.setName("Edenred Admin");
+        admin.setEmail("admin@edenred.com");
+        admin.setCnpj("00000000000000");
+        admin.setPasswordHash("encoded");
+        admin.setRole(UserRole.ADMIN);
+
+        UserRepository userRepository = proxy(UserRepository.class, (proxy, method, args) -> switch (method.getName()) {
+            case "findByEmail" -> Optional.of(admin);
+            default -> defaultValue(method.getReturnType());
+        });
+        OrganizationRepository organizationRepository = proxy(OrganizationRepository.class, (proxy, method, args) -> switch (method.getName()) {
+            case "findAllByOwnerIdOrderByCreatedAtAsc" -> {
+                throw new AssertionError("admin login must not load owner-scoped organizations");
+            }
+            default -> defaultValue(method.getReturnType());
+        });
+        PasswordEncoder passwordEncoder = proxy(PasswordEncoder.class, (proxy, method, args) -> switch (method.getName()) {
+            case "matches" -> true;
+            default -> defaultValue(method.getReturnType());
+        });
+
+        AuthService service = new AuthService(userRepository, organizationRepository, passwordEncoder);
+        var session = service.login("ADMIN@EDENRED.COM", "senha123");
+
+        assertEquals("admin@edenred.com", session.user().email());
+        assertEquals("ADMIN", session.user().role());
+        assertTrue(session.organizations().isEmpty());
     }
 
     @Test

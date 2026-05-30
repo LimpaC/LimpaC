@@ -110,6 +110,7 @@ bun --cwd apps/web dev
 
 ```bash
 bun build
+```
 
 ### Frontend
 
@@ -135,9 +136,19 @@ spring.datasource.driver-class-name=org.postgresql.Driver
 app.cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173
 ```
 
-Se o seu banco tiver outro host, porta, nome, usuário ou senha, ajuste 
+Se o seu banco tiver outro host, porta, nome, usuário ou senha, ajuste o arquivo antes de iniciar o backend.
 
+### Acesso administrativo Edenred
+
+Ao iniciar o backend, o sistema cria ou atualiza automaticamente uma conta administrativa de visualização:
+
+```text
+Email: admin@edenred.com
+Senha: senha123
 ```
+
+Acesse pelo botão "Entrar como admin" na tela de login, ou diretamente em `/admin/login`. Essa conta visualiza todas as organizações e relatórios consolidados, mas não tem acesso às rotas de criação ou edição de dados das organizações.
+
 ## Bugtracker
 
 Estamos usando a aba issues do GitHub como bugtracker, segue em anexo:

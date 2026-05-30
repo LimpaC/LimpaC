@@ -21,8 +21,8 @@ export default function Login() {
     setError(null)
 
     try {
-      await login(email, password)
-      navigate(searchParams.get("next") || "/", { replace: true })
+      const session = await login(email, password)
+      navigate(session.user.role === "ADMIN" ? "/admin" : searchParams.get("next") || "/", { replace: true })
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : "Não foi possível entrar.")
     } finally {
@@ -90,6 +90,12 @@ export default function Login() {
           Ainda não tem conta?{" "}
           <Link className="font-medium text-rose-600 hover:text-rose-700" to="/register">
             Criar acesso
+          </Link>
+        </p>
+        <p className="mt-3 text-center text-sm text-slate-500">
+          Acesso Edenred?{" "}
+          <Link className="font-medium text-slate-900 hover:text-rose-700" to="/admin/login">
+            Entrar como admin
           </Link>
         </p>
       </section>

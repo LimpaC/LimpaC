@@ -6,6 +6,7 @@ import com.limpac.backend.dto.RegisterRequestDTO;
 import com.limpac.backend.dto.UserSummaryDTO;
 import com.limpac.backend.entity.Organization;
 import com.limpac.backend.entity.User;
+import com.limpac.backend.entity.UserRole;
 import com.limpac.backend.repository.OrganizationRepository;
 import com.limpac.backend.repository.UserRepository;
 import org.springframework.http.HttpStatus;
@@ -42,6 +43,7 @@ public class AuthService {
         user.setEmail(email);
         user.setCnpj(sanitizeCnpj(request.cnpj()));
         user.setPasswordHash(passwordEncoder.encode(request.password()));
+        user.setRole(UserRole.USER);
         User savedUser = userRepository.save(user);
 
         Organization organization = new Organization();
@@ -61,19 +63,26 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciais inválidas.");
         }
 
-        return session(user, organizationRepository.findAllByOwnerIdOrderByCreatedAtAsc(user.getId()));
+        List<Organization> organizations = user.getRole() == UserRole.ADMIN
+                ? List.of()
+                : organizationRepository.findAllByOwnerIdOrderByCreatedAtAsc(user.getId());
+
+        return session(user, organizations);
     }
 
     @Transactional(readOnly = true)
     public AuthSessionResponseDTO currentSession(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Sessão inválida."));
-        return session(user, organizationRepository.findAllByOwnerIdOrderByCreatedAtAsc(user.getId()));
+        List<Organization> organizations = user.getRole() == UserRole.ADMIN
+                ? List.of()
+                : organizationRepository.findAllByOwnerIdOrderByCreatedAtAsc(user.getId());
+        return session(user, organizations);
     }
 
     private AuthSessionResponseDTO session(User user, List<Organization> organizations) {
         return new AuthSessionResponseDTO(
-                new UserSummaryDTO(user.getId(), user.getName(), user.getEmail(), user.getCnpj()),
+                new UserSummaryDTO(user.getId(), user.getName(), user.getEmail(), user.getCnpj(), user.getRole().name()),
                 organizations.stream().map(this::toSummary).toList()
         );
     }

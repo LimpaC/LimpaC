@@ -55,6 +55,7 @@ import {
   PanelLeftOpen,
   Plus,
   Settings,
+  Shield,
   type LucideIcon,
 } from "lucide-react"
 import { AuthProvider, useAuth } from "~/lib/auth"
@@ -73,7 +74,7 @@ type SidebarSection = {
   items: SidebarNavItem[]
 }
 
-const authRoutes = new Set(["/login", "/register"])
+const authRoutes = new Set(["/login", "/admin/login", "/register"])
 
 const sidebarSections: SidebarSection[] = [
   {
@@ -497,11 +498,48 @@ function AppShell({ children }: { children: ReactNode }) {
   )
 }
 
+function AdminShell({ children }: { children: ReactNode }) {
+  const { logout, session } = useAuth()
+
+  return (
+    <div className="relative min-h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#fffdfc_42%,#fff8f7_100%)] text-slate-950">
+      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 px-5 backdrop-blur-xl">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
+              <Shield className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-heading text-base font-semibold text-slate-950">LimpaC Admin</p>
+              <p className="truncate text-xs text-slate-500">{session?.user.email}</p>
+            </div>
+          </div>
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-slate-500"
+            aria-label="Sair"
+            onClick={() => void logout()}
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
+      </header>
+
+      <div className="px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto min-w-0 max-w-[1500px] pb-6">{children}</main>
+      </div>
+    </div>
+  )
+}
+
 function AuthGate({ children }: { children: ReactNode }) {
   const { session, isBootstrapping } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isAuthRoute = authRoutes.has(location.pathname)
+  const isProtectedAdminRoute = location.pathname.startsWith("/admin") && location.pathname !== "/admin/login"
 
   useEffect(() => {
     if (isBootstrapping) return
@@ -511,9 +549,17 @@ function AuthGate({ children }: { children: ReactNode }) {
     }
 
     if (session && isAuthRoute) {
+      navigate(session.user.role === "ADMIN" ? "/admin" : "/", { replace: true })
+    }
+
+    if (session?.user.role === "ADMIN" && !isAuthRoute && !isProtectedAdminRoute) {
+      navigate("/admin", { replace: true })
+    }
+
+    if (session?.user.role === "USER" && isProtectedAdminRoute) {
       navigate("/", { replace: true })
     }
-  }, [isAuthRoute, isBootstrapping, location.pathname, navigate, session])
+  }, [isAuthRoute, isBootstrapping, isProtectedAdminRoute, location.pathname, navigate, session])
 
   if (isBootstrapping) {
     return (
@@ -528,6 +574,14 @@ function AuthGate({ children }: { children: ReactNode }) {
   }
 
   if (!session) {
+    return null
+  }
+
+  if (session.user.role === "ADMIN") {
+    return isProtectedAdminRoute ? <AdminShell>{children}</AdminShell> : null
+  }
+
+  if (isProtectedAdminRoute) {
     return null
   }
 

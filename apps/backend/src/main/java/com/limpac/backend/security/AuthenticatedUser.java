@@ -1,6 +1,8 @@
 package com.limpac.backend.security;
 
+import com.limpac.backend.entity.UserRole;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
@@ -12,11 +14,17 @@ public class AuthenticatedUser implements UserDetails {
     private final UUID id;
     private final String email;
     private final String passwordHash;
+    private final UserRole role;
 
     public AuthenticatedUser(UUID id, String email, String passwordHash) {
+        this(id, email, passwordHash, UserRole.USER);
+    }
+
+    public AuthenticatedUser(UUID id, String email, String passwordHash, UserRole role) {
         this.id = id;
         this.email = email;
         this.passwordHash = passwordHash;
+        this.role = role == null ? UserRole.USER : role;
     }
 
     public UUID id() {
@@ -27,9 +35,13 @@ public class AuthenticatedUser implements UserDetails {
         return email;
     }
 
+    public UserRole role() {
+        return role;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override

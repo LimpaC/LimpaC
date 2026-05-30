@@ -34,6 +34,10 @@ public class User {
     @Column(name = "password_hash")
     private String passwordHash;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20) default 'USER'")
+    private UserRole role = UserRole.USER;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
@@ -54,12 +58,18 @@ public class User {
     @PrePersist
     void prePersist() {
         LocalDateTime now = LocalDateTime.now();
+        if (role == null) {
+            role = UserRole.USER;
+        }
         createdAt = now;
         updatedAt = now;
     }
 
     @PreUpdate
     void preUpdate() {
+        if (role == null) {
+            role = UserRole.USER;
+        }
         updatedAt = LocalDateTime.now();
     }
 
@@ -101,6 +111,14 @@ public class User {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public UserRole getRole() {
+        return role == null ? UserRole.USER : role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role == null ? UserRole.USER : role;
     }
 
     public LocalDateTime getCreatedAt() {
