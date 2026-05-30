@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -47,6 +48,12 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, jwtService.clearCookie().toString())
                 .build();
+    }
+
+    @GetMapping("/csrf")
+    public ResponseEntity<Void> csrf(CsrfToken csrfToken) {
+        csrfToken.getToken();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me")

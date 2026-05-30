@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog"
-import { API_BASE_URL, useAuth } from "~/lib/auth"
+import { apiFetch, useAuth } from "~/lib/auth"
 
 type CalculationResult = {
   id: string
@@ -281,14 +281,8 @@ export default function Calcular() {
 
     try {
       const [stateResult, historyResult] = await Promise.allSettled([
-        fetch(
-          `${API_BASE_URL}/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`,
-          { credentials: "include" }
-        ),
-        fetch(
-          `${API_BASE_URL}/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`,
-          { credentials: "include" }
-        ),
+        apiFetch(`/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`),
+        apiFetch(`/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`),
       ])
 
       if (stateResult.status !== "fulfilled") {
@@ -329,14 +323,8 @@ export default function Calcular() {
     }
 
     const [stateResult, historyResult] = await Promise.allSettled([
-      fetch(
-        `${API_BASE_URL}/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`,
-        { credentials: "include" }
-      ),
-      fetch(
-        `${API_BASE_URL}/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`,
-        { credentials: "include" }
-      ),
+      apiFetch(`/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`),
+      apiFetch(`/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`),
     ])
 
     if (stateResult.status !== "fulfilled") {
@@ -376,12 +364,8 @@ export default function Calcular() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/calculation`, {
+      const response = await apiFetch("/calculation", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify({ cards: Math.max(1, Math.floor(cardAmount)), organizationId: activeOrganizationId }),
       })
 
@@ -413,12 +397,8 @@ export default function Calcular() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/calculation/increment`, {
+      const response = await apiFetch("/calculation/increment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify({ organizationId: activeOrganizationId, addCards: normalized }),
       })
 
@@ -457,12 +437,8 @@ export default function Calcular() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/calculation/decrement`, {
+      const response = await apiFetch("/calculation/decrement", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify({ organizationId: activeOrganizationId, removeCards: normalized }),
       })
 
@@ -515,12 +491,8 @@ export default function Calcular() {
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/goal`, {
+      const response = await apiFetch("/goal", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
         body: JSON.stringify({ organizationId: activeOrganizationId, targetCards: normalized }),
       })
 

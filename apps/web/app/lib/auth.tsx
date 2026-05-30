@@ -18,6 +18,7 @@ type AuthUser = {
   name: string
   email: string
   cnpj: string
+  role: "USER" | "ADMIN"
 }
 
 type AuthSession = {
@@ -39,7 +40,7 @@ type AuthContextValue = {
   activeOrganizationId: string | null
   activeOrganization: OrganizationSummary | null
   setActiveOrganizationId: (organizationId: string) => void
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<AuthSession>
   register: (payload: RegisterPayload) => Promise<void>
   logout: () => Promise<void>
   createOrganization: (name: string) => Promise<void>
@@ -48,6 +49,8 @@ type AuthContextValue = {
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080"
 const ACTIVE_ORGANIZATION_KEY = "limpac_active_organization_id"
+const CSRF_COOKIE_NAME = "XSRF-TOKEN"
+const CSRF_HEADER_NAME = "X-XSRF-TOKEN"
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function useAuth() {
@@ -59,14 +62,47 @@ export function useAuth() {
 }
 
 export async function apiFetch(path: string, init?: RequestInit) {
+  const headers = new Headers(init?.headers)
+  if (init?.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+
+  if (requiresCsrf(init?.method)) {
+    headers.set(CSRF_HEADER_NAME, await csrfToken())
+  }
+
   return fetch(`${API_BASE_URL}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
+    headers,
   })
+}
+
+function requiresCsrf(method = "GET") {
+  return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method.toUpperCase())
+}
+
+async function csrfToken() {
+  const existing = readCookie(CSRF_COOKIE_NAME)
+  if (existing) return existing
+
+  await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" })
+  const next = readCookie(CSRF_COOKIE_NAME)
+  if (!next) {
+    throw new Error("Não foi possível inicializar a proteção CSRF.")
+  }
+  return next
+}
+
+function readCookie(name: string) {
+  if (typeof document === "undefined") return null
+
+  const prefix = `${name}=`
+  const cookie = document.cookie
+    .split("; ")
+    .find((entry) => entry.startsWith(prefix))
+
+  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -152,6 +188,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = (await response.json()) as AuthSession
       setSession(data)
       resolveActiveOrganization(data.organizations)
+      return data
     },
     [resolveActiveOrganization]
   )
