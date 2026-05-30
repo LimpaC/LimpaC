@@ -1,6 +1,11 @@
 package com.limpac.backend.service;
 
 import com.limpac.backend.config.CalculationMetricsProperties;
+import com.limpac.backend.domain.calculation.CardQuantity;
+import com.limpac.backend.domain.calculation.ImpactCalculator;
+import com.limpac.backend.domain.calculation.ImpactFactors;
+import com.limpac.backend.domain.calculation.ImpactMetrics;
+import com.limpac.backend.domain.goal.GoalProgressCalculator;
 import com.limpac.backend.dto.CalculationRequestDTO;
 import com.limpac.backend.dto.CalculationResponseDTO;
 import com.limpac.backend.dto.CalculationIncrementRequestDTO;
@@ -12,6 +17,7 @@ import com.limpac.backend.dto.OverallDashboardResponseDTO;
 import com.limpac.backend.entity.Calculation;
 import com.limpac.backend.entity.Goal;
 import com.limpac.backend.entity.Organization;
+import com.limpac.backend.mapper.CalculationMapper;
 import com.limpac.backend.repository.CalculationRepository;
 import com.limpac.backend.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
@@ -31,6 +37,8 @@ public class CalculationService {
     private final OrganizationService organizationService;
     private final GoalService goalService;
     private final CalculationMetricsProperties metrics;
+    private final CalculationMapper calculationMapper = new CalculationMapper();
+    private final GoalProgressCalculator progressCalculator = new GoalProgressCalculator();
 
     public CalculationService(CalculationRepository repository, OrganizationRepository organizationRepository, OrganizationService organizationService, GoalService goalService, CalculationMetricsProperties metrics) {
         this.repository = repository;
@@ -44,20 +52,14 @@ public class CalculationService {
     public CalculationResponseDTO save(CalculationRequestDTO dto, UUID ownerId) {
         Organization organization = organizationService.getOwnedOrganization(dto.organizationId(), ownerId);
         Calculation entity = new Calculation();
-        double cards = dto.cards();
+        ImpactMetrics impact = new ImpactCalculator(impactFactors()).calculate(new CardQuantity(dto.cards()));
 
-        entity.setCards(cards);
-        entity.setCo2Impact(cards * metrics.getCo2PerCard());
-        entity.setPlasticSaved(cards * metrics.getPlasticPerCard());
-        entity.setTreesPreserved((int) Math.round(cards * metrics.getTreesPerCard()));
-        entity.setWaterSaved(cards * metrics.getWaterPerCard());
-        entity.setEnergySaved(cards * metrics.getEnergyPerCard());
-        entity.setMoneySaved(cards * metrics.getMoneySavedPerCardBrl());
+        calculationMapper.applyMetrics(entity, impact);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setOrganization(organization);
 
         Calculation saved = repository.save(entity);
-        return convertToDTO(saved);
+        return calculationMapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -65,7 +67,7 @@ public class CalculationService {
         Organization organization = organizationService.getOwnedOrganization(organizationId, ownerId);
 
         return repository.findAllByOrganizationOrderByCreatedAtAsc(organization).stream()
-                .map(this::convertToDTO)
+                .map(calculationMapper::toResponse)
                 .toList();
     }
 
@@ -78,7 +80,7 @@ public class CalculationService {
 
         return new DashboardStateResponseDTO(
                 goalService.toDTO(goal),
-                latest == null ? null : convertToDTO(latest),
+                latest == null ? null : calculationMapper.toResponse(latest),
                 metricsDTO(),
                 latest != null,
                 progress
@@ -113,21 +115,15 @@ public class CalculationService {
     @Transactional
     public OverallDashboardResponseDTO overall(UUID ownerId) {
         List<Organization> organizations = organizationRepository.findAllByOwnerIdOrderByCreatedAtAsc(ownerId);
-        List<Calculation> latestCalculations = organizations.stream()
-                .map(organization -> repository.findTopByOrganizationOrderByCreatedAtDesc(organization).orElse(null))
+        List<OrganizationSnapshot> snapshots = organizations.stream()
+                .map(this::snapshot)
+                .toList();
+        List<Calculation> latestCalculations = snapshots.stream()
+                .map(OrganizationSnapshot::latest)
                 .filter(calculation -> calculation != null)
                 .toList();
-        List<OrganizationOverviewDTO> organizationSummaries = organizations.stream()
-                .map(organization -> {
-                    Goal goal = goalService.getOrCreateByOrganization(organization);
-                    Calculation latest = repository.findTopByOrganizationOrderByCreatedAtDesc(organization).orElse(null);
-                    return new OrganizationOverviewDTO(
-                            organization.getId(),
-                            organization.getName(),
-                            latest == null ? null : convertToDTO(latest),
-                            calculateProgress(latest, goal)
-                    );
-                })
+        List<OrganizationOverviewDTO> organizationSummaries = snapshots.stream()
+                .map(this::overview)
                 .toList();
 
         double totalCards = latestCalculations.stream().mapToDouble(Calculation::getCards).sum();
@@ -139,28 +135,25 @@ public class CalculationService {
         return new OverallDashboardResponseDTO(totalCards, totalCo2, totalWater, totalEnergy, totalMoney, organizationSummaries);
     }
 
-    private double calculateProgress(Calculation latest, Goal goal) {
-        if (latest == null) {
-            return 0;
-        }
-
-        double target = goal.getTargetCards();
-        double progress = (latest.getCards() / target) * 100;
-        return Math.max(0, Math.min(100, progress));
+    private OrganizationSnapshot snapshot(Organization organization) {
+        Goal goal = goalService.getOrCreateByOrganization(organization);
+        Calculation latest = repository.findTopByOrganizationOrderByCreatedAtDesc(organization).orElse(null);
+        return new OrganizationSnapshot(organization, goal, latest);
     }
 
-    public CalculationResponseDTO convertToDTO(Calculation entity) {
-        return new CalculationResponseDTO(
-                entity.getId(),
-                entity.getCards(),
-                entity.getCo2Impact(),
-                entity.getPlasticSaved(),
-                entity.getTreesPreserved(),
-                entity.getWaterSaved(),
-                entity.getEnergySaved(),
-                entity.getMoneySaved(),
-                entity.getCreatedAt()
+    private OrganizationOverviewDTO overview(OrganizationSnapshot snapshot) {
+        Organization organization = snapshot.organization();
+        Calculation latest = snapshot.latest();
+        return new OrganizationOverviewDTO(
+                organization.getId(),
+                organization.getName(),
+                latest == null ? null : calculationMapper.toResponse(latest),
+                calculateProgress(latest, snapshot.goal())
         );
+    }
+
+    private double calculateProgress(Calculation latest, Goal goal) {
+        return progressCalculator.calculate(latest == null ? null : latest.getCards(), goal.getTargetCards());
     }
 
     private CalculationMetricsDTO metricsDTO() {
@@ -175,5 +168,19 @@ public class CalculationService {
                 metrics.getManufacturingCostPerCardBrl(),
                 metrics.getShippingCostPerCardBrl()
         );
+    }
+
+    private ImpactFactors impactFactors() {
+        return new ImpactFactors(
+                metrics.getCo2PerCard(),
+                metrics.getPlasticPerCard(),
+                metrics.getTreesPerCard(),
+                metrics.getWaterPerCard(),
+                metrics.getEnergyPerCard(),
+                metrics.getMoneySavedPerCardBrl()
+        );
+    }
+
+    private record OrganizationSnapshot(Organization organization, Goal goal, Calculation latest) {
     }
 }
