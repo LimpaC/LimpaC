@@ -27,7 +27,11 @@ export default function AdminLogin() {
       }
       navigate("/admin", { replace: true })
     } catch (exception) {
-      setError(exception instanceof Error ? exception.message : "Não foi possível entrar.")
+      setError(
+        exception instanceof Error
+          ? exception.message
+          : "Não foi possível entrar."
+      )
     } finally {
       setIsSubmitting(false)
     }
@@ -40,18 +44,27 @@ export default function AdminLogin() {
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white">
             <Shield className="h-4 w-4" />
           </div>
-          <p className="font-heading text-2xl font-semibold text-slate-950">LimpaC Admin</p>
-          <h1 className="font-heading text-xl font-semibold text-slate-900">Entrar no painel Edenred</h1>
-          <p className="text-sm leading-6 text-slate-500">Acesso somente para visualização dos dados consolidados.</p>
+          <p className="font-heading text-2xl font-semibold text-slate-950">
+            LimpaC Admin
+          </p>
+          <h1 className="font-heading text-xl font-semibold text-slate-900">
+            Entrar no painel Edenred
+          </h1>
+          <p className="text-sm leading-6 text-slate-500">
+            Acesso somente para visualização dos dados consolidados.
+          </p>
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="admin-email" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <Label
+              htmlFor="admin-email"
+              className="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
+            >
               Email
             </Label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Mail className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="admin-email"
                 type="email"
@@ -64,11 +77,14 @@ export default function AdminLogin() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="admin-password" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <Label
+              htmlFor="admin-password"
+              className="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
+            >
               Senha
             </Label>
             <div className="relative">
-              <LockKeyhole className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <LockKeyhole className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input
                 id="admin-password"
                 type="password"
@@ -86,14 +102,20 @@ export default function AdminLogin() {
             </p>
           ) : null}
 
-          <Button className="h-12 w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800" disabled={isSubmitting}>
+          <Button
+            className="h-12 w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800"
+            disabled={isSubmitting}
+          >
             {isSubmitting ? "Entrando..." : "Entrar como admin"}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Conta de organização?{" "}
-          <Link className="font-medium text-rose-600 hover:text-rose-700" to="/login">
+          <Link
+            className="font-medium text-rose-600 hover:text-rose-700"
+            to="/login"
+          >
             Voltar ao login
           </Link>
         </p>

@@ -9,6 +9,8 @@ public record AdminOrganizationDashboardDTO(
         UUID ownerId,
         String ownerName,
         String ownerEmail,
+        GoalResponseDTO goal,
+        double goalProgressPct,
         CalculationResponseDTO latestCalculation,
         List<CalculationResponseDTO> history
 ) {

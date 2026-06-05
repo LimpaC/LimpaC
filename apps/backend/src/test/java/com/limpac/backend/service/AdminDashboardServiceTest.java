@@ -2,9 +2,11 @@ package com.limpac.backend.service;
 
 import com.limpac.backend.dto.AdminOrganizationDashboardDTO;
 import com.limpac.backend.entity.Calculation;
+import com.limpac.backend.entity.Goal;
 import com.limpac.backend.entity.Organization;
 import com.limpac.backend.entity.User;
 import com.limpac.backend.repository.CalculationRepository;
+import com.limpac.backend.repository.GoalRepository;
 import com.limpac.backend.repository.OrganizationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,8 @@ class AdminDashboardServiceTest {
         Calculation recifeFirst = calculation(recife, 10, "2026-04-27T10:00:00");
         Calculation recifeLatest = calculation(recife, 25, "2026-04-28T10:00:00");
         Calculation spLatest = calculation(sp, 40, "2026-04-29T10:00:00");
+        Goal recifeGoal = goal(recife, 50, true);
+        Goal spGoal = goal(sp, 80, true);
 
         OrganizationRepository organizationRepository = proxy(OrganizationRepository.class, (proxy, method, args) -> switch (method.getName()) {
             case "findAllByOrderByCreatedAtAsc" -> List.of(recife, sp);
@@ -46,14 +50,25 @@ class AdminDashboardServiceTest {
             }
             default -> defaultValue(method.getReturnType());
         });
+        GoalRepository goalRepository = proxy(GoalRepository.class, (proxy, method, args) -> switch (method.getName()) {
+            case "findByOrganization" -> {
+                Organization organization = (Organization) args[0];
+                yield Optional.of(organization.equals(recife) ? recifeGoal : spGoal);
+            }
+            default -> defaultValue(method.getReturnType());
+        });
 
-        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository);
+        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository, goalRepository);
         var dashboard = service.dashboard();
 
         assertEquals(65.0, dashboard.totalCards(), 0.0001);
+        assertEquals(130, dashboard.totalGoalCards());
+        assertEquals(50.0, dashboard.totalGoalProgressPct(), 0.0001);
         assertEquals(2, dashboard.organizations().size());
         assertEquals("Recife", dashboard.organizations().get(0).name());
         assertEquals("Maria", dashboard.organizations().get(0).ownerName());
+        assertEquals(50, dashboard.organizations().get(0).goal().targetCards());
+        assertEquals(50.0, dashboard.organizations().get(0).goalProgressPct(), 0.0001);
         assertEquals(2, dashboard.organizations().get(0).history().size());
         assertEquals(25.0, dashboard.organizations().get(0).latestCalculation().cards(), 0.0001);
         assertEquals(40.0, dashboard.organizations().get(1).latestCalculation().cards(), 0.0001);
@@ -74,13 +89,19 @@ class AdminDashboardServiceTest {
             case "findAllByOrganizationOrderByCreatedAtAsc" -> List.of();
             default -> defaultValue(method.getReturnType());
         });
+        GoalRepository goalRepository = proxy(GoalRepository.class, (proxy, method, args) -> switch (method.getName()) {
+            case "findByOrganization" -> Optional.empty();
+            default -> defaultValue(method.getReturnType());
+        });
 
-        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository);
+        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository, goalRepository);
         AdminOrganizationDashboardDTO organizationDashboard = service.dashboard().organizations().get(0);
 
         assertEquals(0.0, service.dashboard().totalCards(), 0.0001);
+        assertEquals(0, service.dashboard().totalGoalCards());
         assertEquals("Sem historico", organizationDashboard.name());
         assertEquals(null, organizationDashboard.latestCalculation());
+        assertEquals(false, organizationDashboard.goal().configured());
         assertEquals(0, organizationDashboard.history().size());
     }
 
@@ -115,6 +136,15 @@ class AdminDashboardServiceTest {
         calculation.setMoneySaved(cards * 15.0);
         calculation.setCreatedAt(LocalDateTime.parse(createdAt));
         return calculation;
+    }
+
+    private static Goal goal(Organization organization, int targetCards, boolean configured) {
+        Goal goal = new Goal();
+        goal.setTargetCards(targetCards);
+        goal.setConfigured(configured);
+        goal.setUpdatedAt(LocalDateTime.now());
+        goal.setOrganization(organization);
+        return goal;
     }
 
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {

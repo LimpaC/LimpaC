@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs"
 
 import "./apps/web/app/lib/utils.behavior"
-import "./apps/web/app/lib/token-cookie.behavior"
+import "./apps/web/app/lib/report-utils.behavior"
 
 function collectFiles(dir: string, predicate: (path: string) => boolean): string[] {
   if (!statSync(dir).isDirectory()) {

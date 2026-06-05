@@ -2,12 +2,28 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import NumberFlow from "@number-flow/react"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { Banknote, CreditCard, Droplets, FileDown, Leaf, LoaderCircle } from "lucide-react"
+import {
+  Banknote,
+  CreditCard,
+  Droplets,
+  FileDown,
+  Leaf,
+  LoaderCircle,
+} from "lucide-react"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent } from "~/components/ui/card"
 import { Progress } from "~/components/ui/progress"
 import { Skeleton } from "~/components/ui/skeleton"
 import { apiFetch, useAuth } from "~/lib/auth"
+import {
+  drawImprovementList,
+  drawLineChart,
+  drawMetricCards,
+  drawReportHeader,
+  drawReportPage,
+  drawSectionTitle,
+} from "~/lib/report-pdf"
+import { buildImprovementItems, getGoalReportSummary } from "~/lib/report-utils"
 
 type CalculationResult = {
   id: string
@@ -47,7 +63,9 @@ type DashboardState = {
   progressPct: number
 }
 
-const numberFormatter = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 })
+const numberFormatter = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 0,
+})
 const moneyFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -83,7 +101,9 @@ export default function Home() {
       try {
         const [stateResponse, historyResponse] = await Promise.all([
           apiFetch(`/calculation/state?organizationId=${activeOrganizationId}`),
-          apiFetch(`/calculation/history?organizationId=${activeOrganizationId}`),
+          apiFetch(
+            `/calculation/history?organizationId=${activeOrganizationId}`
+          ),
         ])
 
         if (!stateResponse.ok) {
@@ -121,13 +141,20 @@ export default function Home() {
 
   const latest = state?.latestCalculation ?? null
   const orderedHistory = useMemo(
-    () => [...history].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    () =>
+      [...history].sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      ),
     [history]
   )
   const maxCards = Math.max(1, ...orderedHistory.map((entry) => entry.cards))
   const trendPoints = orderedHistory
     .map((entry, index) => {
-      const x = orderedHistory.length <= 1 ? 0 : (index / (orderedHistory.length - 1)) * 100
+      const x =
+        orderedHistory.length <= 1
+          ? 0
+          : (index / (orderedHistory.length - 1)) * 100
       const y = 100 - (entry.cards / maxCards) * 100
       return `${x},${y}`
     })
@@ -143,41 +170,142 @@ export default function Home() {
     setError(null)
 
     try {
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      })
       const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
       const marginX = 16
       const contentWidth = pageWidth - marginX * 2
+      const generatedAt = new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(new Date())
+      const currentCards = latest?.cards ?? 0
+      const previousCards =
+        orderedHistory.length > 1
+          ? orderedHistory[orderedHistory.length - 2]?.cards
+          : null
+      const goalSummary = getGoalReportSummary({
+        currentCards,
+        goalConfigured: state?.goal.configured ?? false,
+        goalTargetCards: state?.goal.targetCards ?? 0,
+        progressPct: state?.progressPct ?? 0,
+      })
+      const improvementItems = buildImprovementItems({
+        currentCards,
+        goalConfigured: state?.goal.configured ?? false,
+        goalTargetCards: state?.goal.targetCards ?? 0,
+        progressPct: state?.progressPct ?? 0,
+        historyCount: orderedHistory.length,
+        previousCards,
+      })
+      const trendData = orderedHistory.map((entry) => ({
+        label: dateFormatter.format(new Date(entry.createdAt)),
+        value: entry.cards,
+      }))
 
-      doc.setFillColor(248, 250, 252)
-      doc.rect(0, 0, pageWidth, doc.internal.pageSize.getHeight(), "F")
-      doc.setFillColor(190, 18, 60)
-      doc.roundedRect(marginX, 14, contentWidth, 28, 6, 6, "F")
-      doc.setTextColor(255, 255, 255)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(18)
-      doc.text("LimpaC", marginX + 8, 26)
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "normal")
-      doc.text(activeOrganization?.name ?? "Organização", marginX + 8, 34)
-
-      autoTable(doc, {
-        startY: 54,
-        head: [["Indicador", "Valor"]],
-        body: [
-          ["Cartões digitais", latest ? numberFormatter.format(latest.cards) : "-"],
-          ["Economia", latest ? moneyFormatter.format(latest.moneySaved) : "-"],
-          ["Água preservada", latest ? `${numberFormatter.format(latest.waterSaved)} L` : "-"],
-          ["CO2 evitado", latest ? latest.co2Impact.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-"],
-          ["Progresso da meta", `${Math.round(state?.progressPct ?? 0)}%`],
-        ],
-        theme: "grid",
-        headStyles: { fillColor: [190, 18, 60], textColor: [255, 255, 255] },
-        styles: { font: "helvetica", fontSize: 9, textColor: [15, 23, 42] },
-        margin: { left: marginX, right: marginX },
+      drawReportPage(doc)
+      drawReportHeader(doc, {
+        title: "LimpaC",
+        subtitle: `Relatório de impacto - ${activeOrganization?.name ?? "Organização"}`,
+        meta: `Gerado em ${generatedAt}`,
+        x: marginX,
+        y: 14,
+        width: contentWidth,
       })
 
+      const metricsEndY = drawMetricCards(
+        doc,
+        [
+          {
+            label: "Cartões digitais",
+            value: latest ? numberFormatter.format(latest.cards) : "-",
+            note: "Base atual",
+          },
+          {
+            label: "Economia",
+            value: latest ? moneyFormatter.format(latest.moneySaved) : "-",
+            note: "Total estimado",
+          },
+          {
+            label: "Água preservada",
+            value: latest
+              ? `${numberFormatter.format(latest.waterSaved)} L`
+              : "-",
+            note: "Impacto acumulado",
+          },
+          {
+            label: "CO2 evitado",
+            value: latest
+              ? `${latest.co2Impact.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`
+              : "-",
+            note: "Em CO2e",
+          },
+        ],
+        marginX,
+        52,
+        contentWidth,
+        { columns: 2 }
+      )
+
+      const goalEndY = drawMetricCards(
+        doc,
+        [
+          {
+            label: "Meta",
+            value: goalSummary.targetCards
+              ? numberFormatter.format(goalSummary.targetCards)
+              : "Não configurada",
+            note: goalSummary.status,
+          },
+          {
+            label: "Progresso",
+            value: `${goalSummary.progressPct}%`,
+            note:
+              goalSummary.remainingCards == null
+                ? "Defina uma meta"
+                : `${numberFormatter.format(goalSummary.remainingCards)} restantes`,
+          },
+        ],
+        marginX,
+        metricsEndY + 7,
+        contentWidth,
+        { columns: 2, cardHeight: 24 }
+      )
+
+      const improvementsEndY = drawImprovementList(
+        doc,
+        improvementItems,
+        marginX,
+        goalEndY + 12,
+        contentWidth
+      )
+      const chartY = improvementsEndY + 10
+      drawLineChart(
+        doc,
+        "Tendência de cartões digitais",
+        trendData,
+        marginX,
+        chartY,
+        contentWidth,
+        52
+      )
+
+      let historyTitleY = chartY + 66
+      let historyTableY = historyTitleY + 6
+      if (historyTableY > pageHeight - 45) {
+        doc.addPage()
+        drawReportPage(doc)
+        historyTitleY = 22
+        historyTableY = 28
+      }
+
+      drawSectionTitle(doc, "Histórico de resultados", marginX, historyTitleY)
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : 100,
+        startY: historyTableY,
         head: [["Data", "Cartões", "Economia"]],
         body:
           orderedHistory.length > 0
@@ -191,8 +319,19 @@ export default function Home() {
                 ])
             : [["Sem histórico", "-", "-"]],
         theme: "grid",
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
-        styles: { font: "helvetica", fontSize: 8.5, textColor: [15, 23, 42] },
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        styles: {
+          font: "helvetica",
+          fontSize: 8,
+          cellPadding: 2.2,
+          textColor: [15, 23, 42],
+          lineColor: [226, 232, 240],
+        },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
         margin: { left: marginX, right: marginX },
       })
 
@@ -216,7 +355,9 @@ export default function Home() {
     <div className="space-y-6">
       <section className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Organização</p>
+          <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
+            Organização
+          </p>
           <h1 className="mt-2 font-heading text-3xl font-semibold text-slate-950">
             Dados {activeOrganization?.name ?? "da organização"}
           </h1>
@@ -224,38 +365,84 @@ export default function Home() {
         <Button
           onClick={() => void generateReport()}
           disabled={isGeneratingReport || (!latest && history.length === 0)}
-          className="h-11 rounded-2xl bg-slate-950 px-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-white hover:bg-slate-800"
+          className="h-11 rounded-2xl bg-slate-950 px-4 text-[10px] font-semibold tracking-[0.22em] text-white uppercase hover:bg-slate-800"
         >
-          {isGeneratingReport ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+          {isGeneratingReport ? (
+            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="mr-2 h-4 w-4" />
+          )}
           Relatório
         </Button>
       </section>
 
       {error ? (
-        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>
+        <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </p>
       ) : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={<CreditCard />} label="Cartões" value={latest?.cards ?? 0} loading={isLoading} />
-        <SummaryCard icon={<Banknote />} label="Economia" value={latest?.moneySaved ?? 0} money loading={isLoading} />
-        <SummaryCard icon={<Droplets />} label="Água" value={latest?.waterSaved ?? 0} suffix=" L" loading={isLoading} />
-        <SummaryCard icon={<Leaf />} label="CO2" value={latest?.co2Impact ?? 0} suffix=" kg" loading={isLoading} decimals={2} />
+        <SummaryCard
+          icon={<CreditCard />}
+          label="Cartões"
+          value={latest?.cards ?? 0}
+          loading={isLoading}
+        />
+        <SummaryCard
+          icon={<Banknote />}
+          label="Economia"
+          value={latest?.moneySaved ?? 0}
+          money
+          loading={isLoading}
+        />
+        <SummaryCard
+          icon={<Droplets />}
+          label="Água"
+          value={latest?.waterSaved ?? 0}
+          suffix=" L"
+          loading={isLoading}
+        />
+        <SummaryCard
+          icon={<Leaf />}
+          label="CO2"
+          value={latest?.co2Impact ?? 0}
+          suffix=" kg"
+          loading={isLoading}
+          decimals={2}
+        />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <Card className="border-white/70 bg-white/85 shadow-[0_16px_38px_-30px_rgba(15,23,42,0.26)] backdrop-blur-xl">
           <CardContent className="space-y-5 p-6 sm:px-7 sm:py-1">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="font-heading text-xl font-semibold text-slate-950">Histórico</h2>
-              <p className="text-xs text-slate-500">{history.length} registros</p>
+              <h2 className="font-heading text-xl font-semibold text-slate-950">
+                Histórico
+              </h2>
+              <p className="text-xs text-slate-500">
+                {history.length} registros
+              </p>
             </div>
             <div className="h-56 rounded-[24px] border border-slate-100 bg-slate-50/80 p-4">
               {orderedHistory.length > 1 ? (
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full overflow-visible">
-                  <polyline fill="none" stroke="#e11d48" strokeWidth="3" points={trendPoints} vectorEffect="non-scaling-stroke" />
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  className="h-full w-full overflow-visible"
+                >
+                  <polyline
+                    fill="none"
+                    stroke="#e11d48"
+                    strokeWidth="3"
+                    points={trendPoints}
+                    vectorEffect="non-scaling-stroke"
+                  />
                 </svg>
               ) : (
-                <div className="grid h-full place-items-center text-sm text-slate-500">Sem tendência suficiente</div>
+                <div className="grid h-full place-items-center text-sm text-slate-500">
+                  Sem tendência suficiente
+                </div>
               )}
             </div>
           </CardContent>
@@ -263,7 +450,9 @@ export default function Home() {
 
         <Card className="border-white/70 bg-white/85 shadow-[0_16px_38px_-30px_rgba(15,23,42,0.26)] backdrop-blur-xl">
           <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
-            <h2 className="font-heading text-xl font-semibold text-slate-950">Meta</h2>
+            <h2 className="font-heading text-xl font-semibold text-slate-950">
+              Meta
+            </h2>
             <div className="space-y-3">
               <div className="flex items-end justify-between">
                 <span className="text-sm text-slate-500">Progresso</span>
@@ -271,7 +460,11 @@ export default function Home() {
                   {Math.round(state?.progressPct ?? 0)}%
                 </span>
               </div>
-              <Progress value={state?.progressPct ?? 0} className="h-4 bg-slate-100" indicatorClassName="bg-rose-500" />
+              <Progress
+                value={state?.progressPct ?? 0}
+                className="h-4 bg-slate-100"
+                indicatorClassName="bg-rose-500"
+              />
               <p className="text-sm text-slate-500">
                 {state?.goal.configured
                   ? `${numberFormatter.format(state.goal.targetCards)} cartões de meta`
@@ -284,17 +477,34 @@ export default function Home() {
 
       <Card className="border-white/70 bg-white/85 shadow-[0_16px_38px_-30px_rgba(15,23,42,0.26)] backdrop-blur-xl">
         <CardContent className="space-y-4 p-6 sm:px-7 sm:py-1">
-          <h2 className="font-heading text-xl font-semibold text-slate-950">Registros recentes</h2>
+          <h2 className="font-heading text-xl font-semibold text-slate-950">
+            Registros recentes
+          </h2>
           <div className="divide-y divide-slate-100">
-            {orderedHistory.slice().reverse().slice(0, 6).map((entry) => (
-              <div key={entry.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center">
-                <span className="text-slate-500">{dateFormatter.format(new Date(entry.createdAt))}</span>
-                <span className="font-medium text-slate-950">{numberFormatter.format(entry.cards)} cartões</span>
-                <span className="font-medium text-emerald-600">{moneyFormatter.format(entry.moneySaved)}</span>
-              </div>
-            ))}
+            {orderedHistory
+              .slice()
+              .reverse()
+              .slice(0, 6)
+              .map((entry) => (
+                <div
+                  key={entry.id}
+                  className="grid gap-2 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center"
+                >
+                  <span className="text-slate-500">
+                    {dateFormatter.format(new Date(entry.createdAt))}
+                  </span>
+                  <span className="font-medium text-slate-950">
+                    {numberFormatter.format(entry.cards)} cartões
+                  </span>
+                  <span className="font-medium text-emerald-600">
+                    {moneyFormatter.format(entry.moneySaved)}
+                  </span>
+                </div>
+              ))}
             {orderedHistory.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-500">Nenhum cálculo registrado ainda.</div>
+              <div className="py-8 text-center text-sm text-slate-500">
+                Nenhum cálculo registrado ainda.
+              </div>
             ) : null}
           </div>
         </CardContent>
@@ -327,7 +537,9 @@ function SummaryCard({
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100 [&_svg]:h-4 [&_svg]:w-4">
             {icon}
           </div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{label}</p>
+          <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
+            {label}
+          </p>
         </div>
         {loading ? (
           <Skeleton className="h-10 w-32 rounded-xl bg-slate-100" />
@@ -336,7 +548,11 @@ function SummaryCard({
             <NumberFlow
               value={value}
               locales="pt-BR"
-              format={money ? { style: "currency", currency: "BRL" } : { maximumFractionDigits: decimals }}
+              format={
+                money
+                  ? { style: "currency", currency: "BRL" }
+                  : { maximumFractionDigits: decimals }
+              }
               suffix={suffix}
             />
           </div>

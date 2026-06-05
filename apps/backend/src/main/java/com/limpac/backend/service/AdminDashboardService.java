@@ -3,9 +3,12 @@ package com.limpac.backend.service;
 import com.limpac.backend.dto.AdminDashboardResponseDTO;
 import com.limpac.backend.dto.AdminOrganizationDashboardDTO;
 import com.limpac.backend.dto.CalculationResponseDTO;
+import com.limpac.backend.dto.GoalResponseDTO;
+import com.limpac.backend.entity.Goal;
 import com.limpac.backend.entity.Organization;
 import com.limpac.backend.mapper.CalculationMapper;
 import com.limpac.backend.repository.CalculationRepository;
+import com.limpac.backend.repository.GoalRepository;
 import com.limpac.backend.repository.OrganizationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +20,17 @@ public class AdminDashboardService {
 
     private final OrganizationRepository organizationRepository;
     private final CalculationRepository calculationRepository;
+    private final GoalRepository goalRepository;
     private final CalculationMapper calculationMapper = new CalculationMapper();
 
-    public AdminDashboardService(OrganizationRepository organizationRepository, CalculationRepository calculationRepository) {
+    public AdminDashboardService(
+            OrganizationRepository organizationRepository,
+            CalculationRepository calculationRepository,
+            GoalRepository goalRepository
+    ) {
         this.organizationRepository = organizationRepository;
         this.calculationRepository = calculationRepository;
+        this.goalRepository = goalRepository;
     }
 
     @Transactional(readOnly = true)
@@ -43,6 +52,12 @@ public class AdminDashboardService {
         double totalWater = latestCalculations.stream().mapToDouble(CalculationResponseDTO::waterSaved).sum();
         double totalEnergy = latestCalculations.stream().mapToDouble(CalculationResponseDTO::energySaved).sum();
         double totalMoney = latestCalculations.stream().mapToDouble(CalculationResponseDTO::moneySaved).sum();
+        int totalGoalCards = organizationDashboards.stream()
+                .map(AdminOrganizationDashboardDTO::goal)
+                .filter(GoalResponseDTO::configured)
+                .mapToInt(GoalResponseDTO::targetCards)
+                .sum();
+        double totalGoalProgressPct = totalGoalCards > 0 ? (totalCards / totalGoalCards) * 100 : 0;
 
         return new AdminDashboardResponseDTO(
                 totalCards,
@@ -52,6 +67,8 @@ public class AdminDashboardService {
                 totalWater,
                 totalEnergy,
                 totalMoney,
+                totalGoalCards,
+                totalGoalProgressPct,
                 organizationDashboards
         );
     }
@@ -63,6 +80,12 @@ public class AdminDashboardService {
         CalculationResponseDTO latest = calculationRepository.findTopByOrganizationOrderByCreatedAtDesc(organization)
                 .map(calculationMapper::toResponse)
                 .orElse(null);
+        GoalResponseDTO goal = goalRepository.findByOrganization(organization)
+                .map(this::toGoalResponse)
+                .orElse(new GoalResponseDTO(0, null, false));
+        double goalProgressPct = goal.configured() && goal.targetCards() > 0 && latest != null
+                ? (latest.cards() / goal.targetCards()) * 100
+                : 0;
 
         return new AdminOrganizationDashboardDTO(
                 organization.getId(),
@@ -70,8 +93,14 @@ public class AdminDashboardService {
                 organization.getOwner().getId(),
                 organization.getOwner().getName(),
                 organization.getOwner().getEmail(),
+                goal,
+                goalProgressPct,
                 latest,
                 history
         );
+    }
+
+    private GoalResponseDTO toGoalResponse(Goal goal) {
+        return new GoalResponseDTO(goal.getTargetCards(), goal.getUpdatedAt(), goal.isConfigured());
     }
 }

@@ -47,7 +47,8 @@ type AuthContextValue = {
   refreshSession: () => Promise<AuthSession | null>
 }
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080"
+export const API_BASE_URL =
+  import.meta.env.VITE_API_URL ?? "http://localhost:8080"
 const ACTIVE_ORGANIZATION_KEY = "limpac_active_organization_id"
 const CSRF_COOKIE_NAME = "XSRF-TOKEN"
 const CSRF_HEADER_NAME = "X-XSRF-TOKEN"
@@ -108,24 +109,33 @@ function readCookie(name: string) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null)
   const [isBootstrapping, setIsBootstrapping] = useState(true)
-  const [activeOrganizationId, setActiveOrganizationIdState] = useState<string | null>(null)
+  const [activeOrganizationId, setActiveOrganizationIdState] = useState<
+    string | null
+  >(null)
 
-  const resolveActiveOrganization = useCallback((organizations: OrganizationSummary[]) => {
-    const stored =
-      typeof window === "undefined" ? null : window.localStorage.getItem(ACTIVE_ORGANIZATION_KEY)
-    const next = organizations.some((organization) => organization.id === stored)
-      ? stored
-      : organizations[0]?.id ?? null
+  const resolveActiveOrganization = useCallback(
+    (organizations: OrganizationSummary[]) => {
+      const stored =
+        typeof window === "undefined"
+          ? null
+          : window.localStorage.getItem(ACTIVE_ORGANIZATION_KEY)
+      const next = organizations.some(
+        (organization) => organization.id === stored
+      )
+        ? stored
+        : (organizations[0]?.id ?? null)
 
-    setActiveOrganizationIdState(next)
-    if (typeof window !== "undefined") {
-      if (next) {
-        window.localStorage.setItem(ACTIVE_ORGANIZATION_KEY, next)
-      } else {
-        window.localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
+      setActiveOrganizationIdState(next)
+      if (typeof window !== "undefined") {
+        if (next) {
+          window.localStorage.setItem(ACTIVE_ORGANIZATION_KEY, next)
+        } else {
+          window.localStorage.removeItem(ACTIVE_ORGANIZATION_KEY)
+        }
       }
-    }
-  }, [])
+    },
+    []
+  )
 
   const refreshSession = useCallback(async () => {
     const response = await apiFetch("/auth/me")
@@ -228,7 +238,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const created = (await response.json()) as OrganizationSummary
       const nextSession = await refreshSession()
-      if (nextSession?.organizations.some((organization) => organization.id === created.id)) {
+      if (
+        nextSession?.organizations.some(
+          (organization) => organization.id === created.id
+        )
+      ) {
         setActiveOrganizationId(created.id)
       }
     },
@@ -237,7 +251,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const activeOrganization = useMemo(
     () =>
-      session?.organizations.find((organization) => organization.id === activeOrganizationId) ?? null,
+      session?.organizations.find(
+        (organization) => organization.id === activeOrganizationId
+      ) ?? null,
     [activeOrganizationId, session?.organizations]
   )
 

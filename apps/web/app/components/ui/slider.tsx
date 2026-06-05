@@ -3,7 +3,10 @@ import { Slider as SliderPrimitive } from "radix-ui"
 
 import { cn } from "~/lib/utils"
 
-function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
+function Slider({
+  className,
+  ...props
+}: React.ComponentProps<typeof SliderPrimitive.Root>) {
   return (
     <SliderPrimitive.Root
       data-slot="slider"
@@ -14,7 +17,10 @@ function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimi
         data-slot="slider-track"
         className="relative h-2 w-full grow overflow-hidden rounded-full bg-slate-100"
       >
-        <SliderPrimitive.Range data-slot="slider-range" className="absolute h-full bg-rose-500" />
+        <SliderPrimitive.Range
+          data-slot="slider-range"
+          className="absolute h-full bg-rose-500"
+        />
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
         data-slot="slider-thumb"

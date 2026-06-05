@@ -30,6 +30,16 @@ import {
   DialogTitle,
 } from "~/components/ui/dialog"
 import { apiFetch, useAuth } from "~/lib/auth"
+import {
+  drawBarChart,
+  drawImprovementList,
+  drawLineChart,
+  drawMetricCards,
+  drawReportHeader,
+  drawReportPage,
+  drawSectionTitle,
+} from "~/lib/report-pdf"
+import { buildImprovementItems, getGoalReportSummary } from "~/lib/report-utils"
 
 type CalculationResult = {
   id: string
@@ -157,12 +167,26 @@ function AnimatedMetricValue({
   loadingWidth?: string
 }) {
   if (isLoading) {
-    return <Skeleton className={cn("h-12 rounded-xl bg-slate-100/80", loadingWidth)} />
+    return (
+      <Skeleton
+        className={cn("h-12 rounded-xl bg-slate-100/80", loadingWidth)}
+      />
+    )
   }
 
   return (
-    <div className={cn("font-heading tabular-nums tracking-[-0.04em] text-slate-950", valueClassName)}>
-      <NumberFlow value={value} format={format} locales="pt-BR" suffix={suffix} />
+    <div
+      className={cn(
+        "font-heading tracking-[-0.04em] text-slate-950 tabular-nums",
+        valueClassName
+      )}
+    >
+      <NumberFlow
+        value={value}
+        format={format}
+        locales="pt-BR"
+        suffix={suffix}
+      />
     </div>
   )
 }
@@ -182,16 +206,16 @@ function MetricCard({
   return (
     <Card className="border-white/70 bg-white/90 shadow-[0_18px_36px_-28px_rgba(15,23,42,0.28)] backdrop-blur-xl">
       <CardContent className="space-y-6 p-6 sm:px-7 sm:py-1">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100/80">
-              {icon}
-            </div>
-            <div className="min-w-0">
-              {eyebrow ? (
-                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-                  {eyebrow}
-                </p>
-              ) : null}
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 ring-1 ring-rose-100/80">
+            {icon}
+          </div>
+          <div className="min-w-0">
+            {eyebrow ? (
+              <p className="text-[9px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
+                {eyebrow}
+              </p>
+            ) : null}
             <h3 className="mt-1 text-xs font-medium text-slate-700">{title}</h3>
           </div>
         </div>
@@ -201,11 +225,15 @@ function MetricCard({
           isLoading={isLoading}
           format={format}
           suffix={suffix}
-          valueClassName={valueClassName ?? "text-2xl sm:text-[2rem] leading-none"}
+          valueClassName={
+            valueClassName ?? "text-2xl sm:text-[2rem] leading-none"
+          }
           loadingWidth={loadingWidth}
         />
 
-        {helper ? <p className="text-xs leading-relaxed text-slate-500">{helper}</p> : null}
+        {helper ? (
+          <p className="text-xs leading-relaxed text-slate-500">{helper}</p>
+        ) : null}
       </CardContent>
     </Card>
   )
@@ -281,8 +309,12 @@ export default function Calcular() {
 
     try {
       const [stateResult, historyResult] = await Promise.allSettled([
-        apiFetch(`/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`),
-        apiFetch(`/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`),
+        apiFetch(
+          `/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`
+        ),
+        apiFetch(
+          `/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`
+        ),
       ])
 
       if (stateResult.status !== "fulfilled") {
@@ -304,7 +336,8 @@ export default function Calcular() {
         if (historyResponse.status === 204) {
           setHistory([])
         } else if (historyResponse.ok) {
-          const historyData = (await historyResponse.json()) as CalculationResult[]
+          const historyData =
+            (await historyResponse.json()) as CalculationResult[]
           setHistory(buildTransactionHistory(historyData).reverse())
         } else {
           setHistory([])
@@ -323,8 +356,12 @@ export default function Calcular() {
     }
 
     const [stateResult, historyResult] = await Promise.allSettled([
-      apiFetch(`/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`),
-      apiFetch(`/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`),
+      apiFetch(
+        `/calculation/state?organizationId=${encodeURIComponent(activeOrganizationId)}`
+      ),
+      apiFetch(
+        `/calculation/history?organizationId=${encodeURIComponent(activeOrganizationId)}`
+      ),
     ])
 
     if (stateResult.status !== "fulfilled") {
@@ -346,7 +383,8 @@ export default function Calcular() {
       if (historyResponse.status === 204) {
         setHistory([])
       } else if (historyResponse.ok) {
-        const historyData = (await historyResponse.json()) as CalculationResult[]
+        const historyData =
+          (await historyResponse.json()) as CalculationResult[]
         setHistory(buildTransactionHistory(historyData).reverse())
       } else {
         setHistory([])
@@ -366,7 +404,10 @@ export default function Calcular() {
     try {
       const response = await apiFetch("/calculation", {
         method: "POST",
-        body: JSON.stringify({ cards: Math.max(1, Math.floor(cardAmount)), organizationId: activeOrganizationId }),
+        body: JSON.stringify({
+          cards: Math.max(1, Math.floor(cardAmount)),
+          organizationId: activeOrganizationId,
+        }),
       })
 
       if (!response.ok) {
@@ -399,7 +440,10 @@ export default function Calcular() {
     try {
       const response = await apiFetch("/calculation/increment", {
         method: "POST",
-        body: JSON.stringify({ organizationId: activeOrganizationId, addCards: normalized }),
+        body: JSON.stringify({
+          organizationId: activeOrganizationId,
+          addCards: normalized,
+        }),
       })
 
       if (!response.ok) {
@@ -439,7 +483,10 @@ export default function Calcular() {
     try {
       const response = await apiFetch("/calculation/decrement", {
         method: "POST",
-        body: JSON.stringify({ organizationId: activeOrganizationId, removeCards: normalized }),
+        body: JSON.stringify({
+          organizationId: activeOrganizationId,
+          removeCards: normalized,
+        }),
       })
 
       if (!response.ok) {
@@ -472,7 +519,9 @@ export default function Calcular() {
     }
 
     const success =
-      delta > 0 ? await incrementCards(delta) : await decrementCards(Math.abs(delta))
+      delta > 0
+        ? await incrementCards(delta)
+        : await decrementCards(Math.abs(delta))
 
     if (success) {
       setIsEditCardsModalOpen(false)
@@ -493,7 +542,10 @@ export default function Calcular() {
     try {
       const response = await apiFetch("/goal", {
         method: "PUT",
-        body: JSON.stringify({ organizationId: activeOrganizationId, targetCards: normalized }),
+        body: JSON.stringify({
+          organizationId: activeOrganizationId,
+          targetCards: normalized,
+        }),
       })
 
       if (!response.ok) {
@@ -528,92 +580,181 @@ export default function Calcular() {
       const pageHeight = doc.internal.pageSize.getHeight()
       const marginX = 16
       const contentWidth = pageWidth - marginX * 2
-
-      doc.setFillColor(248, 250, 252)
-      doc.rect(0, 0, pageWidth, pageHeight, "F")
-
-      doc.setFillColor(190, 18, 60)
-      doc.roundedRect(marginX, 14, contentWidth, 28, 6, 6, "F")
-      doc.setTextColor(255, 255, 255)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(18)
-      doc.text("LimpaC", marginX + 8, 26)
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "normal")
-      doc.text("Relatório de impacto e transações", marginX + 8, 33)
-
       const generatedAt = new Intl.DateTimeFormat("pt-BR", {
-        dateStyle: "long",
+        dateStyle: "medium",
         timeStyle: "short",
       }).format(new Date())
-      doc.text(`Gerado em ${generatedAt}`, pageWidth - marginX - 8, 26, { align: "right" })
+      const transactionHistory = buildTransactionHistory(history)
+      const previousCards =
+        transactionHistory.length > 1
+          ? transactionHistory[transactionHistory.length - 2]?.cards
+          : null
+      const goalSummary = getGoalReportSummary({
+        currentCards: displayedCards,
+        goalConfigured,
+        goalTargetCards: goal,
+        progressPct: progress,
+      })
+      const improvementItems = buildImprovementItems({
+        currentCards: displayedCards,
+        goalConfigured,
+        goalTargetCards: goal,
+        progressPct: progress,
+        historyCount: transactionHistory.length,
+        previousCards,
+      })
+      const trendData = transactionHistory.map((entry) => ({
+        label: formatDateTime(entry.createdAt),
+        value: entry.cards,
+      }))
+      const impactChartData = [
+        {
+          name: "Água",
+          value: waterSaved,
+          label: `${integerFormatter.format(waterSaved)} L`,
+        },
+        {
+          name: "Energia",
+          value: result?.energySaved ?? 0,
+          label: `${integerFormatter.format(result?.energySaved ?? 0)} kWh`,
+        },
+        {
+          name: "CO2",
+          value: pollutionAvoided,
+          label: `${pollutionAvoided.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`,
+        },
+      ].filter((entry) => entry.value > 0)
 
-      const summaryY = 52
-      const summaryCards = [
-        {
-          label: "Cartões atuais",
-          value: integerFormatter.format(displayedCards),
-          note: goalConfigured ? `${integerFormatter.format(goal)} cartões de meta` : "Meta não configurada",
-        },
-        {
-          label: "Economia total",
-          value: formatCurrency(moneySaved),
-          note: "Acumulado no período",
-        },
-        {
-          label: "Água preservada",
-          value: `${integerFormatter.format(waterSaved)} L`,
-          note: "Estimativa consolidada",
-        },
-        {
-          label: "CO2 evitado",
-          value: pollutionAvoided.toLocaleString("pt-BR", {
-            maximumFractionDigits: 2,
-          }),
-          note: "Em kg de CO2e",
-        },
-      ]
-
-      const cardWidth = (contentWidth - 6) / 2
-      const cardHeight = 24
-
-      summaryCards.forEach((item, index) => {
-        const x = marginX + (index % 2) * (cardWidth + 6)
-        const y = summaryY + Math.floor(index / 2) * (cardHeight + 5)
-        doc.setFillColor(255, 255, 255)
-        doc.setDrawColor(226, 232, 240)
-        doc.roundedRect(x, y, cardWidth, cardHeight, 4, 4, "FD")
-        doc.setTextColor(100, 116, 139)
-        doc.setFontSize(9)
-        doc.setFont("helvetica", "normal")
-        doc.text(item.label, x + 6, y + 8)
-        doc.setTextColor(15, 23, 42)
-        doc.setFontSize(13)
-        doc.setFont("helvetica", "bold")
-        doc.text(item.value, x + 6, y + 16)
-        doc.setTextColor(100, 116, 139)
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "normal")
-        doc.text(item.note, x + 6, y + 21)
+      drawReportPage(doc)
+      drawReportHeader(doc, {
+        title: "LimpaC",
+        subtitle: "Relatório de impacto e transações",
+        meta: `Gerado em ${generatedAt}`,
+        x: marginX,
+        y: 14,
+        width: contentWidth,
       })
 
-      const metricsStartY = summaryY + 2 * (cardHeight + 5) + 6
-      doc.setTextColor(15, 23, 42)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(13)
-      doc.text("Indicadores ambientais", marginX, metricsStartY)
+      const summaryEndY = drawMetricCards(
+        doc,
+        [
+          {
+            label: "Cartões atuais",
+            value: integerFormatter.format(displayedCards),
+            note: goalConfigured
+              ? `${integerFormatter.format(goal)} cartões de meta`
+              : "Meta não configurada",
+          },
+          {
+            label: "Economia total",
+            value: formatCurrency(moneySaved),
+            note: "Acumulado no período",
+          },
+          {
+            label: "Água preservada",
+            value: `${integerFormatter.format(waterSaved)} L`,
+            note: "Estimativa consolidada",
+          },
+          {
+            label: "CO2 evitado",
+            value: `${pollutionAvoided.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`,
+            note: "Em CO2e",
+          },
+        ],
+        marginX,
+        52,
+        contentWidth,
+        { columns: 2 }
+      )
+
+      const goalEndY = drawMetricCards(
+        doc,
+        [
+          {
+            label: "Meta",
+            value: goalSummary.targetCards
+              ? integerFormatter.format(goalSummary.targetCards)
+              : "Não configurada",
+            note: goalSummary.status,
+          },
+          {
+            label: "Progresso",
+            value: `${goalSummary.progressPct}%`,
+            note:
+              goalSummary.remainingCards == null
+                ? "Defina uma meta"
+                : `${integerFormatter.format(goalSummary.remainingCards)} cartões restantes`,
+          },
+        ],
+        marginX,
+        summaryEndY + 7,
+        contentWidth,
+        { columns: 2, cardHeight: 24 }
+      )
+
+      const improvementsEndY = drawImprovementList(
+        doc,
+        improvementItems,
+        marginX,
+        goalEndY + 12,
+        contentWidth
+      )
+      const chartY = improvementsEndY + 9
+      drawLineChart(
+        doc,
+        "Evolução da contagem",
+        trendData,
+        marginX,
+        chartY,
+        (contentWidth - 6) / 2,
+        52
+      )
+      drawBarChart(
+        doc,
+        "Impacto consolidado",
+        impactChartData,
+        marginX + (contentWidth + 6) / 2,
+        chartY,
+        (contentWidth - 6) / 2,
+        52
+      )
+
+      doc.addPage()
+      drawReportPage(doc)
+      drawSectionTitle(doc, "Indicadores ambientais", marginX, 22)
 
       autoTable(doc, {
-        startY: metricsStartY + 4,
+        startY: 28,
         head: [["Indicador", "Valor"]],
         body: [
-          ["Plástico evitado", `${metrics?.plasticPerCard ? integerFormatter.format(Math.round(displayedCards * metrics.plasticPerCard)) : "-"} kg`],
-          ["Água por cartão", metrics ? `${metrics.waterPerCard.toFixed(2)} L` : "-"],
-          ["Energia por cartão", metrics ? `${metrics.energyPerCard.toFixed(2)} kWh` : "-"],
-          ["CO2 por cartão", metrics ? `${metrics.co2PerCard.toFixed(4)} kg` : "-"],
-          ["Custo material", metrics ? formatCurrency(metrics.materialCostPerCardBrl) : "-"],
-          ["Custo fabricação", metrics ? formatCurrency(metrics.manufacturingCostPerCardBrl) : "-"],
-          ["Custo envio", metrics ? formatCurrency(metrics.shippingCostPerCardBrl) : "-"],
+          [
+            "Plástico evitado",
+            `${metrics?.plasticPerCard ? integerFormatter.format(Math.round(displayedCards * metrics.plasticPerCard)) : "-"} kg`,
+          ],
+          [
+            "Água por cartão",
+            metrics ? `${metrics.waterPerCard.toFixed(2)} L` : "-",
+          ],
+          [
+            "Energia por cartão",
+            metrics ? `${metrics.energyPerCard.toFixed(2)} kWh` : "-",
+          ],
+          [
+            "CO2 por cartão",
+            metrics ? `${metrics.co2PerCard.toFixed(4)} kg` : "-",
+          ],
+          [
+            "Custo material",
+            metrics ? formatCurrency(metrics.materialCostPerCardBrl) : "-",
+          ],
+          [
+            "Custo fabricação",
+            metrics ? formatCurrency(metrics.manufacturingCostPerCardBrl) : "-",
+          ],
+          [
+            "Custo envio",
+            metrics ? formatCurrency(metrics.shippingCostPerCardBrl) : "-",
+          ],
         ],
         theme: "grid",
         styles: {
@@ -634,7 +775,7 @@ export default function Calcular() {
         margin: { left: marginX, right: marginX },
       })
 
-      const historyRows = buildTransactionHistory(history)
+      const historyRows = transactionHistory
         .slice()
         .reverse()
         .map((entry) => [
@@ -647,9 +788,14 @@ export default function Calcular() {
         ])
 
       autoTable(doc, {
-        startY: (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 10 : metricsStartY + 70,
+        startY: (doc as any).lastAutoTable?.finalY
+          ? (doc as any).lastAutoTable.finalY + 10
+          : 94,
         head: [["Data", "Variação", "Total", "Economia"]],
-        body: historyRows.length > 0 ? historyRows : [["Sem histórico", "-", "-", "-"]],
+        body:
+          historyRows.length > 0
+            ? historyRows
+            : [["Sem histórico", "-", "-", "-"]],
         theme: "grid",
         styles: {
           font: "helvetica",
@@ -695,7 +841,10 @@ export default function Calcular() {
 
     return () => {
       window.removeEventListener("limpac:open-goal", openGoal as EventListener)
-      window.removeEventListener("limpac:open-cards", openCards as EventListener)
+      window.removeEventListener(
+        "limpac:open-cards",
+        openCards as EventListener
+      )
     }
   }, [])
 
@@ -714,7 +863,9 @@ export default function Calcular() {
     "border-white/70 bg-white/85 shadow-[0_16px_38px_-30px_rgba(15,23,42,0.26)] backdrop-blur-xl",
     "transition-[border-color,opacity] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]"
   )
-  const enterClass = isReady ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+  const enterClass = isReady
+    ? "translate-y-0 opacity-100"
+    : "translate-y-3 opacity-0"
   return (
     <>
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-8">
@@ -743,19 +894,25 @@ export default function Calcular() {
                   <div className="space-y-2">
                     <Label
                       htmlFor="cards"
-                      className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+                      className="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
                     >
                       Quantidade
                     </Label>
                     <div className="relative">
-                      <CreditCard className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                      <CreditCard className="absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-slate-400" />
                       <Input
                         id="cards"
                         type="number"
                         min={1}
                         value={cards}
                         onChange={(e) =>
-                          setCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))
+                          setCards(
+                            clampInteger(
+                              Number(e.target.value) || 0,
+                              1,
+                              GOAL_MAX
+                            )
+                          )
                         }
                         className="no-spinner h-12 rounded-2xl border-slate-200 bg-slate-50/80 pl-12 text-base font-medium text-slate-950 shadow-none focus-visible:ring-rose-500"
                       />
@@ -765,7 +922,7 @@ export default function Calcular() {
                   <Button
                     onClick={() => void calculateImpact(cards)}
                     disabled={isLoading}
-                    className="h-12 w-full rounded-2xl bg-rose-500 text-[11px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(244,63,94,0.95)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
+                    className="h-12 w-full rounded-2xl bg-rose-500 text-[11px] font-semibold tracking-[0.22em] text-white uppercase shadow-[0_18px_45px_-22px_rgba(244,63,94,0.95)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
                   >
                     {isLoading ? "Salvando..." : "Salvar contagem inicial"}
                   </Button>
@@ -774,11 +931,15 @@ export default function Calcular() {
                 <>
                   <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                     <div className="space-y-2">
-                      <Label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      <Label className="text-[11px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
                         Contagem atual
                       </Label>
                       <div className="font-heading text-[2.2rem] font-semibold tracking-[-0.06em] text-slate-950 sm:text-[2.4rem]">
-                        <NumberFlow value={displayedCards} format={integerFlowFormat} locales="pt-BR" />
+                        <NumberFlow
+                          value={displayedCards}
+                          format={integerFlowFormat}
+                          locales="pt-BR"
+                        />
                       </div>
                     </div>
                   </div>
@@ -786,7 +947,7 @@ export default function Calcular() {
                   <Button
                     onClick={openEditCardsModal}
                     disabled={isSavingCards || isLoading}
-                    className="h-11 w-full rounded-2xl bg-rose-500 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-none transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
+                    className="h-11 w-full rounded-2xl bg-rose-500 text-[10px] font-semibold tracking-[0.22em] text-white uppercase shadow-none transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-rose-600"
                   >
                     {isSavingCards ? "Atualizando..." : "Editar cartões"}
                   </Button>
@@ -807,7 +968,7 @@ export default function Calcular() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <Clock3 className="h-4 w-4 text-rose-500" />
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
                       Histórico
                     </p>
                   </div>
@@ -825,7 +986,10 @@ export default function Calcular() {
               {isInitialLoading ? (
                 <div className="space-y-2">
                   {[0, 1, 2].map((item) => (
-                    <Skeleton key={item} className="h-[66px] rounded-2xl bg-slate-100/80" />
+                    <Skeleton
+                      key={item}
+                      className="h-[66px] rounded-2xl bg-slate-100/80"
+                    />
                   ))}
                 </div>
               ) : history.length > 0 ? (
@@ -861,16 +1025,20 @@ export default function Calcular() {
                           </div>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-slate-900">
-                              {isInitial ? "Cálculo inicial" : "Ajuste de cartões"}
+                              {isInitial
+                                ? "Cálculo inicial"
+                                : "Ajuste de cartões"}
                             </p>
                             <p className="text-xs text-slate-500">
-                              {historyDateFormatter.format(new Date(entry.createdAt))}
+                              {historyDateFormatter.format(
+                                new Date(entry.createdAt)
+                              )}
                             </p>
                           </div>
                         </div>
 
                         <div className="text-right">
-                          <p className="text-sm font-semibold tabular-nums text-slate-950">
+                          <p className="text-sm font-semibold text-slate-950 tabular-nums">
                             {deltaLabel}
                           </p>
                           <p className="text-xs text-slate-500">
@@ -887,14 +1055,16 @@ export default function Calcular() {
                     <Clock3 className="h-4 w-4" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-slate-900">Nenhum lançamento registrado</p>
+                    <p className="text-sm font-medium text-slate-900">
+                      Nenhum lançamento registrado
+                    </p>
                     <p className="text-xs leading-5 text-slate-500">
-                      Assim que você calcular ou editar os cartões, o histórico aparece aqui.
+                      Assim que você calcular ou editar os cartões, o histórico
+                      aparece aqui.
                     </p>
                   </div>
                 </div>
               )}
-
             </CardContent>
           </Card>
         </section>
@@ -929,20 +1099,26 @@ export default function Calcular() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Droplets className="h-4 w-4 text-rose-500" />
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
                       Água
                     </p>
                   </div>
                   <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
-                    <NumberFlow value={waterSaved} format={integerFlowFormat} locales="pt-BR" />
+                    <NumberFlow
+                      value={waterSaved}
+                      format={integerFlowFormat}
+                      locales="pt-BR"
+                    />
                   </div>
-                  <p className="text-sm leading-6 text-slate-600">Litros economizados</p>
+                  <p className="text-sm leading-6 text-slate-600">
+                    Litros economizados
+                  </p>
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-rose-500" />
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                    <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">
                       Poluição
                     </p>
                   </div>
@@ -953,7 +1129,9 @@ export default function Calcular() {
                       locales="pt-BR"
                     />
                   </div>
-                  <p className="text-sm leading-6 text-slate-600">CO2e evitado</p>
+                  <p className="text-sm leading-6 text-slate-600">
+                    CO2e evitado
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -964,13 +1142,20 @@ export default function Calcular() {
               {goalConfigured ? (
                 <div className="mx-auto flex max-w-md flex-col items-center space-y-3 text-center">
                   <div className="font-heading text-[1.55rem] font-semibold tracking-[-0.05em] text-slate-950">
-                    <NumberFlow value={goal} format={integerFlowFormat} locales="pt-BR" /> cartões
+                    <NumberFlow
+                      value={goal}
+                      format={integerFlowFormat}
+                      locales="pt-BR"
+                    />{" "}
+                    cartões
                   </div>
 
                   <div className="relative w-full pt-6">
                     <div
-                      className="absolute top-0 z-10 -translate-x-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-[0_8px_20px_-16px_rgba(15,23,42,0.45)]"
-                      style={{ left: `${Math.min(100, Math.max(0, progress))}%` }}
+                      className="absolute top-0 z-10 -translate-x-1/2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[9px] font-semibold tracking-[0.18em] text-slate-500 uppercase shadow-[0_8px_20px_-16px_rgba(15,23,42,0.45)]"
+                      style={{
+                        left: `${Math.min(100, Math.max(0, progress))}%`,
+                      }}
                     >
                       {Math.round(progress).toLocaleString("pt-BR")}%
                     </div>
@@ -996,21 +1181,23 @@ export default function Calcular() {
                     </p>
                   </div>
                   <Button
-                    className="h-10 rounded-2xl bg-rose-500 px-4 text-[10px] font-semibold uppercase tracking-[0.2em] text-white hover:bg-rose-600"
+                    className="h-10 rounded-2xl bg-rose-500 px-4 text-[10px] font-semibold tracking-[0.2em] text-white uppercase hover:bg-rose-600"
                     onClick={() => setIsGoalModalOpen(true)}
                   >
                     Adicionar meta
                   </Button>
                 </div>
               )}
-
             </CardContent>
           </Card>
 
           <Button
             onClick={() => void generateReport()}
-            disabled={isGeneratingReport || (!result && history.length === 0 && !hasHistory)}
-            className="h-11 w-full rounded-2xl bg-slate-950 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_18px_45px_-22px_rgba(15,23,42,0.8)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800"
+            disabled={
+              isGeneratingReport ||
+              (!result && history.length === 0 && !hasHistory)
+            }
+            className="h-11 w-full rounded-2xl bg-slate-950 text-[10px] font-semibold tracking-[0.22em] text-white uppercase shadow-[0_18px_45px_-22px_rgba(15,23,42,0.8)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-slate-800"
           >
             {isGeneratingReport ? (
               <>
@@ -1034,14 +1221,15 @@ export default function Calcular() {
               Definir meta
             </DialogTitle>
             <DialogDescription className="text-slate-600">
-              Ajuste sua meta de cartões digitais para refletir o objetivo do período.
+              Ajuste sua meta de cartões digitais para refletir o objetivo do
+              período.
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-6 space-y-4">
             <Label
               htmlFor="goal-cards"
-              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+              className="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
             >
               Meta de cartões
             </Label>
@@ -1052,7 +1240,9 @@ export default function Calcular() {
               max={GOAL_MAX}
               value={goalDraft}
               onChange={(e) =>
-                setGoalDraft(clampInteger(Number(e.target.value) || 0, GOAL_MIN, GOAL_MAX))
+                setGoalDraft(
+                  clampInteger(Number(e.target.value) || 0, GOAL_MIN, GOAL_MAX)
+                )
               }
               className="no-spinner h-12 rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
             />
@@ -1083,21 +1273,25 @@ export default function Calcular() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isEditCardsModalOpen} onOpenChange={setIsEditCardsModalOpen}>
+      <Dialog
+        open={isEditCardsModalOpen}
+        onOpenChange={setIsEditCardsModalOpen}
+      >
         <DialogContent className="w-[92vw] max-w-4xl rounded-[28px] border-white/70 bg-white/95 shadow-[0_30px_110px_-70px_rgba(15,23,42,0.55)] backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl tracking-[-0.04em] text-slate-950">
               Editar cartões
             </DialogTitle>
             <DialogDescription className="text-slate-600">
-              Escreva a quantidade final de cartões digitais que deseja registrar.
+              Escreva a quantidade final de cartões digitais que deseja
+              registrar.
             </DialogDescription>
           </DialogHeader>
 
           <div className="mt-4 space-y-2">
             <Label
               htmlFor="edit-cards"
-              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500"
+              className="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase"
             >
               Quantidade final
             </Label>
@@ -1106,12 +1300,16 @@ export default function Calcular() {
               type="number"
               min={1}
               value={editedCards}
-              onChange={(e) => setEditedCards(clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX))}
+              onChange={(e) =>
+                setEditedCards(
+                  clampInteger(Number(e.target.value) || 0, 1, GOAL_MAX)
+                )
+              }
               className="no-spinner h-12 w-full rounded-2xl border-slate-200 bg-slate-50/80 text-base font-medium text-slate-950 focus-visible:ring-rose-500"
             />
             <div className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm sm:grid-cols-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-[10px] font-semibold tracking-[0.18em] text-slate-400 uppercase">
                   Atual
                 </p>
                 <p className="mt-1 font-medium text-slate-950">
@@ -1119,7 +1317,7 @@ export default function Calcular() {
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-[10px] font-semibold tracking-[0.18em] text-slate-400 uppercase">
                   Nova contagem
                 </p>
                 <p className="mt-1 font-medium text-slate-950">
@@ -1127,10 +1325,15 @@ export default function Calcular() {
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-[10px] font-semibold tracking-[0.18em] text-slate-400 uppercase">
                   Variação
                 </p>
-                <p className={cn("mt-1 font-medium", editDelta >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                <p
+                  className={cn(
+                    "mt-1 font-medium",
+                    editDelta >= 0 ? "text-emerald-600" : "text-rose-600"
+                  )}
+                >
                   {editDelta === 0
                     ? "Sem alteração"
                     : `${editDelta > 0 ? "+" : "-"}${integerFormatter.format(Math.abs(editDelta))}`}
