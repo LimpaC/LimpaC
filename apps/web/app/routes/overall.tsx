@@ -1,6 +1,14 @@
 import { useEffect, useState, type ComponentProps, type ReactNode } from "react"
 import NumberFlow from "@number-flow/react"
-import { BarChart3, Banknote, CreditCard, Droplets, Leaf } from "lucide-react"
+import {
+  ArrowLeftRight,
+  BarChart3,
+  Banknote,
+  CreditCard,
+  Droplets,
+  Leaf,
+  Smartphone,
+} from "lucide-react"
 import { Card, CardContent } from "~/components/ui/card"
 import { Skeleton } from "~/components/ui/skeleton"
 import { apiFetch } from "~/lib/auth"
@@ -12,11 +20,18 @@ type CalculationResult = {
   moneySaved: number
 }
 
+type TransactionCalculationResult = {
+  totalTransactions: number
+  digitalPct: number
+  digitalTransactions: number
+}
+
 type OrganizationOverview = {
   id: string
   name: string
   latestCalculation: CalculationResult | null
   progressPct: number
+  latestTransactionCalculation: TransactionCalculationResult | null
 }
 
 type OverallDashboard = {
@@ -25,6 +40,8 @@ type OverallDashboard = {
   totalWaterSaved: number
   totalEnergySaved: number
   totalMoneySaved: number
+  totalTransactions: number
+  totalDigitalTransactions: number
   organizations: OrganizationOverview[]
 }
 
@@ -84,7 +101,7 @@ export default function Overall() {
         </p>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <Metric
           icon={<CreditCard />}
           label="Cartões"
@@ -111,6 +128,18 @@ export default function Overall() {
           value={data?.totalCo2Impact ?? 0}
           suffix=" kg"
           decimals={2}
+          loading={isLoading}
+        />
+        <Metric
+          icon={<ArrowLeftRight />}
+          label="Transações"
+          value={data?.totalTransactions ?? 0}
+          loading={isLoading}
+        />
+        <Metric
+          icon={<Smartphone />}
+          label="Digitais"
+          value={data?.totalDigitalTransactions ?? 0}
           loading={isLoading}
         />
       </section>
@@ -140,8 +169,13 @@ export default function Overall() {
                       style={{ width: `${(cards / maxCards) * 100}%` }}
                     />
                   </div>
-                  <span className="text-sm font-medium text-slate-600 tabular-nums">
+                  <span className="text-right text-sm font-medium text-slate-600 tabular-nums">
                     {cards.toLocaleString("pt-BR")} cartões
+                    <span className="block text-xs text-slate-400">
+                      {organization.latestTransactionCalculation
+                        ? `${organization.latestTransactionCalculation.totalTransactions.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} transações (${Math.round(organization.latestTransactionCalculation.digitalPct)}% digitais)`
+                        : "sem transações"}
+                    </span>
                   </span>
                 </div>
               )
