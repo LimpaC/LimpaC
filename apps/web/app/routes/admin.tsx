@@ -3,9 +3,13 @@ import NumberFlow from "@number-flow/react"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -15,6 +19,7 @@ import {
 } from "recharts"
 import {
   ArrowDownUp,
+  ArrowLeftRight,
   Banknote,
   Building2,
   Check,
@@ -23,7 +28,9 @@ import {
   FileDown,
   Leaf,
   LoaderCircle,
+  ReceiptText,
   Search,
+  Smartphone,
   Trees,
   X,
 } from "lucide-react"
@@ -55,6 +62,19 @@ type CalculationResult = {
   createdAt: string
 }
 
+type TransactionCalculationResult = {
+  id: string
+  totalTransactions: number
+  digitalPct: number
+  digitalTransactions: number
+  physicalTransactions: number
+  co2Avoided: number
+  paperSaved: number
+  waterSaved: number
+  moneySaved: number
+  createdAt: string
+}
+
 type AdminOrganization = {
   id: string
   name: string
@@ -69,6 +89,8 @@ type AdminOrganization = {
   goalProgressPct: number
   latestCalculation: CalculationResult | null
   history: CalculationResult[]
+  latestTransactionCalculation: TransactionCalculationResult | null
+  transactionHistory: TransactionCalculationResult[]
 }
 
 type AdminDashboard = {
@@ -81,11 +103,16 @@ type AdminDashboard = {
   totalMoneySaved: number
   totalGoalCards: number
   totalGoalProgressPct: number
+  totalTransactions: number
+  totalDigitalTransactions: number
+  totalTransactionMoneySaved: number
+  totalTransactionCo2Avoided: number
+  totalTransactionPaperSaved: number
   organizations: AdminOrganization[]
 }
 
 type AdminTab = "overview" | "organizations"
-type OrganizationSort = "cards" | "money" | "water" | "co2"
+type OrganizationSort = "cards" | "money" | "water" | "co2" | "transacoes"
 
 const numberFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 0,
@@ -110,8 +137,15 @@ const comparisonColors = [
   "#7c3aed",
   "#ea580c",
 ]
+const chartTooltipStyle = {
+  borderRadius: 16,
+  border: "1px solid #e2e8f0",
+  boxShadow: "0 16px 38px -30px rgba(15,23,42,0.4)",
+  fontSize: 12,
+} as const
 const sortOptions: Array<{ value: OrganizationSort; label: string }> = [
   { value: "cards", label: "Cartões" },
+  { value: "transacoes", label: "Transações" },
   { value: "money", label: "Economia" },
   { value: "water", label: "Água" },
   { value: "co2", label: "CO2" },
@@ -140,6 +174,15 @@ export default function AdminDashboardRoute() {
         const response = await apiFetch("/admin/dashboard")
         if (!response.ok) throw new Error()
         const nextData = (await response.json()) as AdminDashboard
+        // Older backend responses may not include the transaction fields yet.
+        nextData.organizations = nextData.organizations.map(
+          (organization) => ({
+            ...organization,
+            transactionHistory: organization.transactionHistory ?? [],
+            latestTransactionCalculation:
+              organization.latestTransactionCalculation ?? null,
+          })
+        )
         if (!cancelled) setData(nextData)
       } catch {
         if (!cancelled)
@@ -172,14 +215,28 @@ export default function AdminDashboardRoute() {
   )
 
   const trendData = useMemo(() => {
-    const totals = new Map<string, number>()
+    const totals = new Map<string, { cards?: number; transacoes?: number }>()
+    const bucket = (createdAt: string) => {
+      const day = dateFormatter.format(new Date(createdAt))
+      const entry = totals.get(day) ?? {}
+      totals.set(day, entry)
+      return entry
+    }
+
     for (const organization of data?.organizations ?? []) {
       for (const entry of organization.history) {
-        const day = dateFormatter.format(new Date(entry.createdAt))
-        totals.set(day, (totals.get(day) ?? 0) + entry.cards)
+        const day = bucket(entry.createdAt)
+        day.cards = (day.cards ?? 0) + entry.cards
+      }
+      for (const entry of organization.transactionHistory) {
+        const day = bucket(entry.createdAt)
+        day.transacoes = (day.transacoes ?? 0) + entry.totalTransactions
       }
     }
-    return Array.from(totals.entries()).map(([day, cards]) => ({ day, cards }))
+    return Array.from(totals.entries()).map(([day, values]) => ({
+      day,
+      ...values,
+    }))
   }, [data?.organizations])
 
   const filteredOrganizations = useMemo(() => {
@@ -224,24 +281,41 @@ export default function AdminDashboardRoute() {
     [data?.organizations, selectedOrganizationIds]
   )
 
-  const comparisonTrendData = useMemo(() => {
-    const maxHistoryLength = Math.max(
-      0,
-      ...selectedOrganizations.map(
-        (organization) => organization.history.length
-      )
-    )
-    return Array.from({ length: maxHistoryLength }, (_, index) => {
-      const row: Record<string, number | string> = { step: `R${index + 1}` }
-      for (const organization of selectedOrganizations) {
-        const entry = organization.history[index]
-        if (entry) {
-          row[organization.id] = metricFromCalculation(entry, organizationSort)
-        }
-      }
-      return row
-    })
-  }, [organizationSort, selectedOrganizations])
+  const comparisonTrendData = useMemo(
+    () =>
+      mergeHistoriesByDay(selectedOrganizations, (organization) =>
+        organizationSort === "transacoes"
+          ? organization.transactionHistory.map((entry) => ({
+              createdAt: entry.createdAt,
+              value: entry.totalTransactions,
+            }))
+          : organization.history.map((entry) => ({
+              createdAt: entry.createdAt,
+              value: metricFromCalculation(entry, organizationSort),
+            }))
+      ),
+    [organizationSort, selectedOrganizations]
+  )
+
+  const comparisonTransactionsTrendData = useMemo(
+    () =>
+      mergeHistoriesByDay(selectedOrganizations, (organization) =>
+        organization.transactionHistory.map((entry) => ({
+          createdAt: entry.createdAt,
+          value: entry.totalTransactions,
+        }))
+      ),
+    [selectedOrganizations]
+  )
+
+  const comparisonDigitalPctData = useMemo(
+    () =>
+      selectedOrganizations.map((organization) => ({
+        name: organization.name,
+        pct: organization.latestTransactionCalculation?.digitalPct ?? 0,
+      })),
+    [selectedOrganizations]
+  )
 
   const comparisonBarData = useMemo(
     () =>
@@ -251,6 +325,8 @@ export default function AdminDashboardRoute() {
         money: organization.latestCalculation?.moneySaved ?? 0,
         water: organization.latestCalculation?.waterSaved ?? 0,
         co2: organization.latestCalculation?.co2Impact ?? 0,
+        transacoes:
+          organization.latestTransactionCalculation?.totalTransactions ?? 0,
       })),
     [selectedOrganizations]
   )
@@ -264,9 +340,11 @@ export default function AdminDashboardRoute() {
           totals.money += latest?.moneySaved ?? 0
           totals.water += latest?.waterSaved ?? 0
           totals.co2 += latest?.co2Impact ?? 0
+          totals.transacoes +=
+            organization.latestTransactionCalculation?.totalTransactions ?? 0
           return totals
         },
-        { cards: 0, money: 0, water: 0, co2: 0 }
+        { cards: 0, money: 0, water: 0, co2: 0, transacoes: 0 }
       ),
     [selectedOrganizations]
   )
@@ -388,6 +466,21 @@ export default function AdminDashboardRoute() {
             value: `${data.totalCo2Impact.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`,
             note: "Em CO2e",
           },
+          {
+            label: "Transações totais",
+            value: numberFormatter.format(data.totalTransactions),
+            note: `${numberFormatter.format(data.totalDigitalTransactions)} em meios digitais`,
+          },
+          {
+            label: "Economia em transações",
+            value: moneyFormatter.format(data.totalTransactionMoneySaved),
+            note: "Recibos + manuseio de dinheiro",
+          },
+          {
+            label: "Impacto das transações",
+            value: `${data.totalTransactionCo2Avoided.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg CO2`,
+            note: `${data.totalTransactionPaperSaved.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg de papel evitado`,
+          },
         ],
         marginX,
         50,
@@ -403,8 +496,15 @@ export default function AdminDashboardRoute() {
         contentWidth
       )
 
+      let insightsY = improvementsEndY + 10
+      if (insightsY > 150) {
+        doc.addPage()
+        drawReportPage(doc)
+        insightsY = 20
+      }
+
       autoTable(doc, {
-        startY: improvementsEndY + 10,
+        startY: insightsY,
         head: [["Insight", "Leitura"]],
         body: [
           [
@@ -432,6 +532,12 @@ export default function AdminDashboardRoute() {
           [
             "Concentração top 3",
             `${reportInsights.topThreeShare.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% dos cartões digitais`,
+          ],
+          [
+            "Adoção digital nas transações",
+            data.totalTransactions > 0
+              ? `${((data.totalDigitalTransactions / data.totalTransactions) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% de ${numberFormatter.format(data.totalTransactions)} transações são digitais`
+              : "Nenhuma organização registrou transações",
           ],
           [
             "Menor base com dados",
@@ -472,6 +578,9 @@ export default function AdminDashboardRoute() {
             "Economia",
             "Água",
             "CO2",
+            "Transações",
+            "% Digital",
+            "Econ. transações",
           ],
         ],
         body: data.organizations.map((organization) => [
@@ -489,6 +598,19 @@ export default function AdminDashboardRoute() {
           ),
           `${numberFormatter.format(organization.latestCalculation?.waterSaved ?? 0)} L`,
           `${(organization.latestCalculation?.co2Impact ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`,
+          organization.latestTransactionCalculation
+            ? numberFormatter.format(
+                organization.latestTransactionCalculation.totalTransactions
+              )
+            : "-",
+          organization.latestTransactionCalculation
+            ? `${Math.round(organization.latestTransactionCalculation.digitalPct)}%`
+            : "-",
+          organization.latestTransactionCalculation
+            ? moneyFormatter.format(
+                organization.latestTransactionCalculation.moneySaved
+              )
+            : "-",
         ]),
         theme: "grid",
         headStyles: {
@@ -526,7 +648,9 @@ export default function AdminDashboardRoute() {
       drawLineChart(
         doc,
         "Tendência consolidada de cartões",
-        trendData.map((entry) => ({ label: entry.day, value: entry.cards })),
+        trendData
+          .filter((entry) => entry.cards != null)
+          .map((entry) => ({ label: entry.day, value: entry.cards ?? 0 })),
         marginX + (contentWidth + 8) / 2,
         26,
         (contentWidth - 8) / 2,
@@ -556,10 +680,40 @@ export default function AdminDashboardRoute() {
             value: data.totalCo2Impact,
             label: `${compactFormatter.format(data.totalCo2Impact)} kg`,
           },
+          {
+            name: "CO2 transações",
+            value: data.totalTransactionCo2Avoided,
+            label: `${compactFormatter.format(data.totalTransactionCo2Avoided)} kg`,
+          },
+          {
+            name: "Papel",
+            value: data.totalTransactionPaperSaved,
+            label: `${compactFormatter.format(data.totalTransactionPaperSaved)} kg`,
+          },
         ],
         marginX,
         106,
-        contentWidth,
+        (contentWidth - 8) / 2,
+        62
+      )
+      drawBarChart(
+        doc,
+        "Top organizações por transações",
+        [...data.organizations]
+          .map((organization) => ({
+            name: organization.name,
+            value:
+              organization.latestTransactionCalculation?.totalTransactions ??
+              0,
+            label: compactFormatter.format(
+              organization.latestTransactionCalculation?.totalTransactions ?? 0
+            ),
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 8),
+        marginX + (contentWidth + 8) / 2,
+        106,
+        (contentWidth - 8) / 2,
         62
       )
 
@@ -576,6 +730,10 @@ export default function AdminDashboardRoute() {
               numberFormatter.format(selectedOrganizations.length),
             ],
             ["Cartões digitais", numberFormatter.format(selectedTotals.cards)],
+            [
+              "Transações",
+              numberFormatter.format(selectedTotals.transacoes),
+            ],
             ["Economia", moneyFormatter.format(selectedTotals.money)],
             [
               "Água preservada",
@@ -761,6 +919,44 @@ export default function AdminDashboardRoute() {
             />
           </section>
 
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <Metric
+              icon={<ArrowLeftRight />}
+              label="Transações"
+              value={data?.totalTransactions ?? 0}
+              loading={isLoading}
+            />
+            <Metric
+              icon={<Smartphone />}
+              label="Digitais"
+              value={data?.totalDigitalTransactions ?? 0}
+              loading={isLoading}
+            />
+            <Metric
+              icon={<Banknote />}
+              label="Econ. transações"
+              value={data?.totalTransactionMoneySaved ?? 0}
+              money
+              loading={isLoading}
+            />
+            <Metric
+              icon={<ReceiptText />}
+              label="Papel evitado"
+              value={data?.totalTransactionPaperSaved ?? 0}
+              suffix=" kg"
+              decimals={2}
+              loading={isLoading}
+            />
+            <Metric
+              icon={<Leaf />}
+              label="CO2 transações"
+              value={data?.totalTransactionCo2Avoided ?? 0}
+              suffix=" kg"
+              decimals={2}
+              loading={isLoading}
+            />
+          </section>
+
           <section className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
             <ChartCard title="Cartões por organização">
               {rankingData.length > 0 ? (
@@ -793,8 +989,28 @@ export default function AdminDashboardRoute() {
                         numberFormatter.format(Number(value))
                       }
                       cursor={{ fill: "rgba(244,63,94,0.08)" }}
+                      contentStyle={chartTooltipStyle}
                     />
-                    <Bar dataKey="cards" fill="#e11d48" radius={[6, 6, 0, 0]} />
+                    <Bar
+                      dataKey="cards"
+                      name="Cartões"
+                      fill="#e11d48"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={48}
+                    >
+                      <LabelList
+                        dataKey="cards"
+                        position="top"
+                        formatter={(value) =>
+                          compactFormatter.format(Number(value))
+                        }
+                        style={{
+                          fontSize: 10,
+                          fill: "#334155",
+                          fontWeight: 600,
+                        }}
+                      />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -805,10 +1021,48 @@ export default function AdminDashboardRoute() {
             <ChartCard title="Tendência consolidada">
               {trendData.length > 1 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
+                  <AreaChart
                     data={trendData}
                     margin={{ top: 12, right: 12, left: 0, bottom: 8 }}
                   >
+                    <defs>
+                      <linearGradient
+                        id="adminTrendGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="#0f172a"
+                          stopOpacity={0.22}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#0f172a"
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                      <linearGradient
+                        id="adminTransactionsGradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="#059669"
+                          stopOpacity={0.2}
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#059669"
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid
                       stroke="#e2e8f0"
                       strokeDasharray="4 4"
@@ -821,10 +1075,21 @@ export default function AdminDashboardRoute() {
                       axisLine={false}
                     />
                     <YAxis
+                      yAxisId="cards"
                       tickFormatter={(value) =>
                         compactFormatter.format(Number(value))
                       }
-                      tick={{ fontSize: 11, fill: "#64748b" }}
+                      tick={{ fontSize: 11, fill: "#0f172a" }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      yAxisId="transacoes"
+                      orientation="right"
+                      tickFormatter={(value) =>
+                        compactFormatter.format(Number(value))
+                      }
+                      tick={{ fontSize: 11, fill: "#059669" }}
                       tickLine={false}
                       axisLine={false}
                     />
@@ -832,15 +1097,39 @@ export default function AdminDashboardRoute() {
                       formatter={(value) =>
                         numberFormatter.format(Number(value))
                       }
+                      cursor={{ stroke: "#0f172a", strokeDasharray: "4 4" }}
+                      contentStyle={chartTooltipStyle}
                     />
-                    <Line
+                    <Legend
+                      wrapperStyle={{ fontSize: 11 }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    <Area
+                      yAxisId="cards"
                       type="monotone"
                       dataKey="cards"
+                      name="Cartões"
                       stroke="#0f172a"
                       strokeWidth={3}
-                      dot={{ r: 3 }}
+                      fill="url(#adminTrendGradient)"
+                      dot={{ r: 3, fill: "#0f172a", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                      connectNulls
                     />
-                  </LineChart>
+                    <Area
+                      yAxisId="transacoes"
+                      type="monotone"
+                      dataKey="transacoes"
+                      name="Transações"
+                      stroke="#059669"
+                      strokeWidth={3}
+                      fill="url(#adminTransactionsGradient)"
+                      dot={{ r: 3, fill: "#059669", strokeWidth: 0 }}
+                      activeDot={{ r: 5 }}
+                      connectNulls
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               ) : (
                 <EmptyChart />
@@ -911,11 +1200,11 @@ export default function AdminDashboardRoute() {
                 </div>
               </div>
 
-              <div className="relative grid grid-cols-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1">
+              <div className="relative grid grid-cols-5 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1">
                 <span
                   className="pointer-events-none absolute top-1 bottom-1 left-1 rounded-xl bg-slate-950 shadow-sm transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                   style={{
-                    width: "calc((100% - 0.5rem) / 4)",
+                    width: "calc((100% - 0.5rem) / 5)",
                     transform: `translateX(${sortOptions.findIndex((option) => option.value === organizationSort) * 100}%)`,
                   }}
                 />
@@ -936,7 +1225,7 @@ export default function AdminDashboardRoute() {
                     key={organization.id}
                     type="button"
                     onClick={() => toggleOrganization(organization.id)}
-                    className={`grid w-full gap-3 rounded-2xl px-3 py-4 text-left text-sm transition-colors lg:grid-cols-[auto_minmax(160px,1fr)_repeat(2,minmax(96px,auto))] lg:items-center ${
+                    className={`grid w-full gap-3 rounded-2xl px-3 py-4 text-left text-sm transition-colors lg:grid-cols-[auto_minmax(140px,1fr)_repeat(3,minmax(88px,auto))] lg:items-center ${
                       selectedOrganizationIds.includes(organization.id)
                         ? "bg-rose-50/80 text-slate-950 ring-1 ring-rose-100"
                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-950"
@@ -963,6 +1252,13 @@ export default function AdminDashboardRoute() {
                       label="Cartões"
                       value={numberFormatter.format(
                         organization.latestCalculation?.cards ?? 0
+                      )}
+                    />
+                    <Value
+                      label="Transações"
+                      value={numberFormatter.format(
+                        organization.latestTransactionCalculation
+                          ?.totalTransactions ?? 0
                       )}
                     />
                     <Value
@@ -1017,10 +1313,14 @@ export default function AdminDashboardRoute() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-5">
                   <ValueBox
                     label="Cartões"
                     value={numberFormatter.format(selectedTotals.cards)}
+                  />
+                  <ValueBox
+                    label="Transações"
+                    value={numberFormatter.format(selectedTotals.transacoes)}
                   />
                   <ValueBox
                     label="Economia"
@@ -1055,7 +1355,7 @@ export default function AdminDashboardRoute() {
                         vertical={false}
                       />
                       <XAxis
-                        dataKey="step"
+                        dataKey="day"
                         tick={{ fontSize: 11, fill: "#64748b" }}
                         tickLine={false}
                         axisLine={false}
@@ -1072,6 +1372,12 @@ export default function AdminDashboardRoute() {
                         formatter={(value) =>
                           formatMetric(Number(value), organizationSort)
                         }
+                        contentStyle={chartTooltipStyle}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11 }}
+                        iconType="circle"
+                        iconSize={8}
                       />
                       {selectedOrganizations.map((organization, index) => (
                         <Line
@@ -1127,12 +1433,148 @@ export default function AdminDashboardRoute() {
                           formatMetric(Number(value), organizationSort)
                         }
                         cursor={{ fill: "rgba(15,23,42,0.05)" }}
+                        contentStyle={chartTooltipStyle}
                       />
                       <Bar
                         dataKey={organizationSort}
+                        name={sortLabel(organizationSort)}
                         fill="#0f172a"
                         radius={[6, 6, 0, 0]}
+                        maxBarSize={48}
+                      >
+                        <LabelList
+                          dataKey={organizationSort}
+                          position="top"
+                          formatter={(value) =>
+                            compactFormatter.format(Number(value))
+                          }
+                          style={{
+                            fontSize: 10,
+                            fill: "#334155",
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-2">
+              <ChartCard title="Transações comparadas">
+                {comparisonTransactionsTrendData.length > 0 &&
+                selectedOrganizations.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={comparisonTransactionsTrendData}
+                      margin={{ top: 12, right: 12, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid
+                        stroke="#e2e8f0"
+                        strokeDasharray="4 4"
+                        vertical={false}
                       />
+                      <XAxis
+                        dataKey="day"
+                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        tickFormatter={(value) =>
+                          compactFormatter.format(Number(value))
+                        }
+                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        formatter={(value) =>
+                          numberFormatter.format(Number(value))
+                        }
+                        contentStyle={chartTooltipStyle}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 11 }}
+                        iconType="circle"
+                        iconSize={8}
+                      />
+                      {selectedOrganizations.map((organization, index) => (
+                        <Line
+                          key={organization.id}
+                          type="monotone"
+                          dataKey={organization.id}
+                          name={organization.name}
+                          stroke={
+                            comparisonColors[index % comparisonColors.length]
+                          }
+                          strokeWidth={3}
+                          dot={{ r: 3 }}
+                          connectNulls
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <EmptyChart />
+                )}
+              </ChartCard>
+
+              <ChartCard title="% de transações digitais">
+                {comparisonDigitalPctData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={comparisonDigitalPctData}
+                      margin={{ top: 16, right: 12, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid
+                        stroke="#e2e8f0"
+                        strokeDasharray="4 4"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        tickFormatter={(value) => `${value}%`}
+                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <Tooltip
+                        formatter={(value) =>
+                          `${Math.round(Number(value))}% digital`
+                        }
+                        cursor={{ fill: "rgba(5,150,105,0.06)" }}
+                        contentStyle={chartTooltipStyle}
+                      />
+                      <Bar
+                        dataKey="pct"
+                        name="% digital"
+                        fill="#059669"
+                        radius={[6, 6, 0, 0]}
+                        maxBarSize={48}
+                      >
+                        <LabelList
+                          dataKey="pct"
+                          position="top"
+                          formatter={(value) =>
+                            `${Math.round(Number(value))}%`
+                          }
+                          style={{
+                            fontSize: 10,
+                            fill: "#334155",
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -1147,7 +1589,36 @@ export default function AdminDashboardRoute() {
   )
 }
 
+function mergeHistoriesByDay(
+  organizations: AdminOrganization[],
+  entriesOf: (
+    organization: AdminOrganization
+  ) => Array<{ createdAt: string; value: number }>
+) {
+  const byDay = new Map<string, Record<string, number | string>>()
+  const order = new Map<string, number>()
+
+  for (const organization of organizations) {
+    for (const entry of entriesOf(organization)) {
+      const date = new Date(entry.createdAt)
+      const day = dateFormatter.format(date)
+      const row = byDay.get(day) ?? { day }
+      row[organization.id] = entry.value
+      byDay.set(day, row)
+      order.set(day, Math.max(order.get(day) ?? 0, date.getTime()))
+    }
+  }
+
+  return [...byDay.values()].sort(
+    (a, b) =>
+      (order.get(String(a.day)) ?? 0) - (order.get(String(b.day)) ?? 0)
+  )
+}
+
 function metricValue(organization: AdminOrganization, sort: OrganizationSort) {
+  if (sort === "transacoes") {
+    return organization.latestTransactionCalculation?.totalTransactions ?? 0
+  }
   const latest = organization.latestCalculation
   if (!latest) return 0
   return metricFromCalculation(latest, sort)
@@ -1167,6 +1638,7 @@ function sortLabel(sort: OrganizationSort) {
   if (sort === "money") return "economia"
   if (sort === "water") return "água"
   if (sort === "co2") return "CO2"
+  if (sort === "transacoes") return "transações"
   return "cartões"
 }
 
