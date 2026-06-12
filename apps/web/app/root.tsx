@@ -44,6 +44,7 @@ import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import { cn } from "~/lib/utils"
 import {
+  ArrowLeftRight,
   BarChart3,
   Building2,
   ChevronDown,
@@ -88,6 +89,7 @@ const sidebarSections: SidebarSection[] = [
     label: "Calculadoras",
     items: [
       { label: "Cartão Digital", to: "/cartao-digital", icon: CreditCard },
+      { label: "Transações", to: "/transacoes", icon: ArrowLeftRight },
     ],
   },
 ]
