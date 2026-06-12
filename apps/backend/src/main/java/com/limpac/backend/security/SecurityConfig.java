@@ -14,7 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -32,6 +32,8 @@ public class SecurityConfig {
     private static final String[] USER_ENDPOINTS = {
             "/calculation",
             "/calculation/**",
+            "/transaction",
+            "/transaction/**",
             "/goal",
             "/goal/**"
     };
@@ -63,7 +65,9 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                // JWT must authenticate before CsrfFilter so a CSRF rejection becomes
+                // 403 (access denied) instead of 401, which the SPA treats as logout.
+                .addFilterBefore(jwtAuthenticationFilter, CsrfFilter.class);
 
         return http.build();
     }

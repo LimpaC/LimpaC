@@ -63,29 +63,60 @@ export function useAuth() {
 }
 
 export async function apiFetch(path: string, init?: RequestInit) {
-  const headers = new Headers(init?.headers)
-  if (init?.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json")
+  const needsCsrf = requiresCsrf(init?.method)
+
+  const doFetch = async (freshCsrf: boolean) => {
+    const headers = new Headers(init?.headers)
+    if (init?.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json")
+    }
+    if (needsCsrf) {
+      headers.set(CSRF_HEADER_NAME, await csrfToken(freshCsrf))
+    }
+
+    return fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      credentials: "include",
+      headers,
+    })
   }
 
-  if (requiresCsrf(init?.method)) {
-    headers.set(CSRF_HEADER_NAME, await csrfToken())
+  let response = await doFetch(false)
+
+  // A stale CSRF token surfaces as 401/403; renew it once and retry before
+  // treating the failure as a dead session.
+  if (
+    needsCsrf &&
+    (response.status === 401 || response.status === 403) &&
+    !path.startsWith("/auth/")
+  ) {
+    response = await doFetch(true)
   }
 
-  return fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    credentials: "include",
-    headers,
-  })
+  // Session expired or revoked: tell the app so it can send the user back
+  // to the login page instead of failing silently on every request.
+  if (
+    response.status === 401 &&
+    !path.startsWith("/auth/") &&
+    typeof window !== "undefined"
+  ) {
+    window.dispatchEvent(new CustomEvent("limpac:unauthorized"))
+  }
+
+  return response
 }
 
 function requiresCsrf(method = "GET") {
   return !["GET", "HEAD", "OPTIONS", "TRACE"].includes(method.toUpperCase())
 }
 
-async function csrfToken() {
-  const existing = readCookie(CSRF_COOKIE_NAME)
-  if (existing) return existing
+async function csrfToken(forceFresh = false) {
+  if (forceFresh && typeof document !== "undefined") {
+    document.cookie = `${CSRF_COOKIE_NAME}=; Max-Age=0; path=/`
+  } else {
+    const existing = readCookie(CSRF_COOKIE_NAME)
+    if (existing) return existing
+  }
 
   await fetch(`${API_BASE_URL}/auth/csrf`, { credentials: "include" })
   const next = readCookie(CSRF_COOKIE_NAME)
@@ -178,6 +209,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
+  }, [resolveActiveOrganization])
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setSession(null)
+      resolveActiveOrganization([])
+    }
+
+    window.addEventListener(
+      "limpac:unauthorized",
+      handleUnauthorized as EventListener
+    )
+    return () =>
+      window.removeEventListener(
+        "limpac:unauthorized",
+        handleUnauthorized as EventListener
+      )
   }, [resolveActiveOrganization])
 
   const setActiveOrganizationId = useCallback((organizationId: string) => {

@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -28,9 +29,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            jwtService.readToken(request)
-                    .flatMap(jwtService::extractEmail)
-                    .ifPresent(email -> {
+            jwtService.readToken(request).ifPresent(token ->
+                    jwtService.extractEmail(token).ifPresent(email -> {
                         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                                 userDetails,
@@ -39,7 +39,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         );
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                         SecurityContextHolder.getContext().setAuthentication(authentication);
-                    });
+
+                        if (jwtService.shouldRefresh(token) && userDetails instanceof AuthenticatedUser authenticatedUser) {
+                            String renewed = jwtService.createToken(authenticatedUser.id(), email);
+                            response.addHeader(HttpHeaders.SET_COOKIE, jwtService.createCookie(renewed).toString());
+                        }
+                    }));
         }
 
         filterChain.doFilter(request, response);

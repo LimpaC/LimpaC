@@ -49,6 +49,13 @@
 
 </details>
 
+<details>
+<summary>Entrega Final</summary>
+
+- **Screencast**: <https://youtu.be/Gwmi1CWJJxs>
+- Histórias implementadas: Calculadora de Transações com meta de redução // Transações na home, dados gerais e painel admin // Relatórios em PDF com as duas metas
+</details>
+
 
 ## Visão Geral
 

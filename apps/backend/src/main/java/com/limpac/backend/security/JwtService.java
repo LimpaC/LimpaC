@@ -62,6 +62,27 @@ public class JwtService {
         }
     }
 
+    /**
+     * Sliding session: a valid token past half of its lifetime should be
+     * re-issued so active users never get logged out mid-use.
+     */
+    public boolean shouldRefresh(String token) {
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length != 3 || !sign(parts[0] + "." + parts[1]).equals(parts[2])) {
+                return false;
+            }
+
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+            long iat = Long.parseLong(extractJsonValue(payload, "iat"));
+            long exp = Long.parseLong(extractJsonValue(payload, "exp"));
+            long now = Instant.now().getEpochSecond();
+            return now < exp && now >= iat + (exp - iat) / 2;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
     public Optional<String> readToken(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
