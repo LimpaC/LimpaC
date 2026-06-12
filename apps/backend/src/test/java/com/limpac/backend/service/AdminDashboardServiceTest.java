@@ -8,6 +8,7 @@ import com.limpac.backend.entity.User;
 import com.limpac.backend.repository.CalculationRepository;
 import com.limpac.backend.repository.GoalRepository;
 import com.limpac.backend.repository.OrganizationRepository;
+import com.limpac.backend.repository.TransactionCalculationRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +59,7 @@ class AdminDashboardServiceTest {
             default -> defaultValue(method.getReturnType());
         });
 
-        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository, goalRepository);
+        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository, goalRepository, emptyTransactionRepository());
         var dashboard = service.dashboard();
 
         assertEquals(65.0, dashboard.totalCards(), 0.0001);
@@ -94,7 +95,7 @@ class AdminDashboardServiceTest {
             default -> defaultValue(method.getReturnType());
         });
 
-        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository, goalRepository);
+        AdminDashboardService service = new AdminDashboardService(organizationRepository, calculationRepository, goalRepository, emptyTransactionRepository());
         AdminOrganizationDashboardDTO organizationDashboard = service.dashboard().organizations().get(0);
 
         assertEquals(0.0, service.dashboard().totalCards(), 0.0001);
@@ -145,6 +146,14 @@ class AdminDashboardServiceTest {
         goal.setUpdatedAt(LocalDateTime.now());
         goal.setOrganization(organization);
         return goal;
+    }
+
+    private static TransactionCalculationRepository emptyTransactionRepository() {
+        return proxy(TransactionCalculationRepository.class, (proxy, method, args) -> switch (method.getName()) {
+            case "findTopByOrganizationOrderByCreatedAtDesc" -> Optional.empty();
+            case "findAllByOrganizationOrderByCreatedAtAsc" -> List.of();
+            default -> defaultValue(method.getReturnType());
+        });
     }
 
     private static <T> T proxy(Class<T> type, InvocationHandler handler) {

@@ -12,6 +12,11 @@ public record AdminDashboardResponseDTO(
         double totalMoneySaved,
         int totalGoalCards,
         double totalGoalProgressPct,
+        double totalTransactions,
+        double totalDigitalTransactions,
+        double totalTransactionMoneySaved,
+        double totalTransactionCo2Avoided,
+        double totalTransactionPaperSaved,
         List<AdminOrganizationDashboardDTO> organizations
 ) {
 }

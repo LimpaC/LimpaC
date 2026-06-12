@@ -6,6 +6,7 @@ public record OrganizationOverviewDTO(
         UUID id,
         String name,
         CalculationResponseDTO latestCalculation,
-        double progressPct
+        double progressPct,
+        TransactionCalculationResponseDTO latestTransactionCalculation
 ) {
 }

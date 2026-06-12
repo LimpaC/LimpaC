@@ -8,6 +8,8 @@ public record OverallDashboardResponseDTO(
         double totalWaterSaved,
         double totalEnergySaved,
         double totalMoneySaved,
+        double totalTransactions,
+        double totalDigitalTransactions,
         List<OrganizationOverviewDTO> organizations
 ) {
 }

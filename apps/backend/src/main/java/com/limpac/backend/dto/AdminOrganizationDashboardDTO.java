@@ -12,6 +12,8 @@ public record AdminOrganizationDashboardDTO(
         GoalResponseDTO goal,
         double goalProgressPct,
         CalculationResponseDTO latestCalculation,
-        List<CalculationResponseDTO> history
+        List<CalculationResponseDTO> history,
+        TransactionCalculationResponseDTO latestTransactionCalculation,
+        List<TransactionCalculationResponseDTO> transactionHistory
 ) {
 }

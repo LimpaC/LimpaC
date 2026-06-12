@@ -17,9 +17,12 @@ import com.limpac.backend.dto.OverallDashboardResponseDTO;
 import com.limpac.backend.entity.Calculation;
 import com.limpac.backend.entity.Goal;
 import com.limpac.backend.entity.Organization;
+import com.limpac.backend.entity.TransactionCalculation;
 import com.limpac.backend.mapper.CalculationMapper;
+import com.limpac.backend.mapper.TransactionCalculationMapper;
 import com.limpac.backend.repository.CalculationRepository;
 import com.limpac.backend.repository.OrganizationRepository;
+import com.limpac.backend.repository.TransactionCalculationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
@@ -37,15 +40,18 @@ public class CalculationService {
     private final OrganizationService organizationService;
     private final GoalService goalService;
     private final CalculationMetricsProperties metrics;
+    private final TransactionCalculationRepository transactionCalculationRepository;
     private final CalculationMapper calculationMapper = new CalculationMapper();
+    private final TransactionCalculationMapper transactionCalculationMapper = new TransactionCalculationMapper();
     private final GoalProgressCalculator progressCalculator = new GoalProgressCalculator();
 
-    public CalculationService(CalculationRepository repository, OrganizationRepository organizationRepository, OrganizationService organizationService, GoalService goalService, CalculationMetricsProperties metrics) {
+    public CalculationService(CalculationRepository repository, OrganizationRepository organizationRepository, OrganizationService organizationService, GoalService goalService, CalculationMetricsProperties metrics, TransactionCalculationRepository transactionCalculationRepository) {
         this.repository = repository;
         this.organizationRepository = organizationRepository;
         this.organizationService = organizationService;
         this.goalService = goalService;
         this.metrics = metrics;
+        this.transactionCalculationRepository = transactionCalculationRepository;
     }
 
     @Transactional
@@ -132,23 +138,33 @@ public class CalculationService {
         double totalEnergy = latestCalculations.stream().mapToDouble(Calculation::getEnergySaved).sum();
         double totalMoney = latestCalculations.stream().mapToDouble(Calculation::getMoneySaved).sum();
 
-        return new OverallDashboardResponseDTO(totalCards, totalCo2, totalWater, totalEnergy, totalMoney, organizationSummaries);
+        List<TransactionCalculation> latestTransactions = snapshots.stream()
+                .map(OrganizationSnapshot::latestTransaction)
+                .filter(transaction -> transaction != null)
+                .toList();
+        double totalTransactions = latestTransactions.stream().mapToDouble(TransactionCalculation::getTotalTransactions).sum();
+        double totalDigitalTransactions = latestTransactions.stream().mapToDouble(TransactionCalculation::getDigitalTransactions).sum();
+
+        return new OverallDashboardResponseDTO(totalCards, totalCo2, totalWater, totalEnergy, totalMoney, totalTransactions, totalDigitalTransactions, organizationSummaries);
     }
 
     private OrganizationSnapshot snapshot(Organization organization) {
         Goal goal = goalService.getOrCreateByOrganization(organization);
         Calculation latest = repository.findTopByOrganizationOrderByCreatedAtDesc(organization).orElse(null);
-        return new OrganizationSnapshot(organization, goal, latest);
+        TransactionCalculation latestTransaction = transactionCalculationRepository.findTopByOrganizationOrderByCreatedAtDesc(organization).orElse(null);
+        return new OrganizationSnapshot(organization, goal, latest, latestTransaction);
     }
 
     private OrganizationOverviewDTO overview(OrganizationSnapshot snapshot) {
         Organization organization = snapshot.organization();
         Calculation latest = snapshot.latest();
+        TransactionCalculation latestTransaction = snapshot.latestTransaction();
         return new OrganizationOverviewDTO(
                 organization.getId(),
                 organization.getName(),
                 latest == null ? null : calculationMapper.toResponse(latest),
-                calculateProgress(latest, snapshot.goal())
+                calculateProgress(latest, snapshot.goal()),
+                latestTransaction == null ? null : transactionCalculationMapper.toResponse(latestTransaction)
         );
     }
 
@@ -181,6 +197,6 @@ public class CalculationService {
         );
     }
 
-    private record OrganizationSnapshot(Organization organization, Goal goal, Calculation latest) {
+    private record OrganizationSnapshot(Organization organization, Goal goal, Calculation latest, TransactionCalculation latestTransaction) {
     }
 }

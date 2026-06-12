@@ -8,6 +8,7 @@ import com.limpac.backend.entity.Calculation;
 import com.limpac.backend.entity.Organization;
 import com.limpac.backend.repository.CalculationRepository;
 import com.limpac.backend.repository.OrganizationRepository;
+import com.limpac.backend.repository.TransactionCalculationRepository;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +59,8 @@ class CalculationServiceTest {
                 proxy(OrganizationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
                 organizationService,
                 Mockito.mock(GoalService.class),
-                metrics
+                metrics,
+                proxy(TransactionCalculationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType()))
         );
         CalculationResponseDTO calculation = service.save(new CalculationRequestDTO(10.0, organizationId), userId);
 
@@ -95,7 +97,8 @@ class CalculationServiceTest {
                 proxy(OrganizationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
                 organizationService,
                 Mockito.mock(GoalService.class),
-                new CalculationMetricsProperties()
+                new CalculationMetricsProperties(),
+                proxy(TransactionCalculationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType()))
         );
 
         ResponseStatusException exception = assertThrows(
@@ -120,7 +123,8 @@ class CalculationServiceTest {
                 proxy(OrganizationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType())),
                 organizationService,
                 Mockito.mock(GoalService.class),
-                new CalculationMetricsProperties()
+                new CalculationMetricsProperties(),
+                proxy(TransactionCalculationRepository.class, (proxy, method, args) -> defaultValue(method.getReturnType()))
         );
 
         ResponseStatusException exception = assertThrows(
