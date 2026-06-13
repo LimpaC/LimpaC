@@ -63,6 +63,23 @@ O **LimpaC** é uma calculadora de impacto ambiental para pagamentos corporativo
 
 A proposta do projeto é apoiar empresas na visualização, de forma clara e objetiva, dos ganhos ambientais gerados pela digitalização dos pagamentos. Com isso, o LimpaC busca transformar sustentabilidade em argumento de negócio, oferecendo dados que auxiliem decisões estratégicas, operacionais e de ESG.
 
+## Cálculo
+
+As duas calculadoras do LimpaC seguem um modelo linear: `Impacto = Quantidade evitada × Fator unitário`. Os fatores ambientais e financeiros são configuráveis no backend (`apps/backend/src/main/resources/application.properties`, sob `app.metrics.*` para cartões e `app.transaction-metrics.*` para transações).
+
+A documentação técnica completa — com os fatores por unidade, a composição dos valores financeiros, exemplos práticos e as fontes de cada número — está em **[docs/bases-de-calculo.pdf](docs/bases-de-calculo.pdf)** (fonte LaTeX em [docs/bases-de-calculo.tex](docs/bases-de-calculo.tex)).
+
+| Fator | Cartão físico | Transação digital |
+| --- | --- | --- |
+| CO₂ (kg) | 0,0471 | 0,007 |
+| Plástico / Papel (kg) | 0,00714 | 0,0023 |
+| Água (L) | 12,857 | 0,133 |
+| Árvores | 0,0342 | 0,0000117 |
+| Energia (kWh) | 0,514 | — |
+| Economia (R$) | 2,77 | 0,34 |
+
+Principais fontes: *Skip the Slip* (Green America / NRDC), Design Life-Cycle, CleverCards, ICMA, Ingenico e dados de perdas no varejo da Abrappe (2024).
+
 ## Deck
 
 [<a href="https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc" align="center"><img width="911" height="512" alt="deck" src="https://github.com/user-attachments/assets/c1d0011b-4324-42ee-bdc9-7768625066c7" /></a>](https://gamma.app/docs/LimpaC-Calculadora-de-Impacto-Ambiental-para-Pagamentos-aorfzmnf6wneieb?mode=doc)
