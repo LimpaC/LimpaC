@@ -1,0 +1,375 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------------------------------------------------------------
+%  LimpaC - Bases de Cálculo das Calculadoras de Impacto
+% ---------------------------------------------------------------
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage[a4paper,margin=2.2cm]{geometry}
+\usepackage[table]{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{amsmath}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,urlcolor={[HTML]{BE123C}},linkcolor={[HTML]{BE123C}}}
+\tcbuselibrary{skins,breakable}
+
+% ----------------------------- Paleta --------------------------
+% Cores espelhadas do front-end (apps/web): brand rose + neutros slate.
+%   --brand / --primary: rose   |  neutros: slate
+\definecolor{limpacGreen}{HTML}{F43F5E}     % rose-500 (brand / accent)
+\definecolor{limpacDark}{HTML}{0F172A}      % slate-900 (títulos)
+\definecolor{limpacLight}{HTML}{FFF1F2}     % rose-50  (fundo de destaque)
+\definecolor{limpacGray}{HTML}{64748B}      % slate-500 (texto auxiliar)
+\definecolor{limpacBlue}{HTML}{334155}      % slate-700 (notas)
+\definecolor{limpacBlueLight}{HTML}{F8FAFC} % slate-50  (fundo de notas)
+\definecolor{roseDeep}{HTML}{BE123C}        % rose-700 (acento forte)
+
+% ----------------------------- siunitx -------------------------
+\sisetup{output-decimal-marker={,},group-separator={.},group-minimum-digits=4}
+
+% ----------------------------- Títulos -------------------------
+\titleformat{\section}
+  {\color{limpacDark}\Large\bfseries\sffamily}
+  {\thesection}{0.6em}{}
+\titleformat{\subsection}
+  {\color{limpacGreen}\large\bfseries\sffamily}
+  {\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+
+% ----------------------------- Cabeçalho -----------------------
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{limpacGreen}\leaders\hrule height \headrulewidth\hfill}}
+\fancyhead[L]{\sffamily\small\color{limpacGray}LimpaC}
+\fancyhead[R]{\sffamily\small\color{limpacGray}Bases de Cálculo das Calculadoras}
+\fancyfoot[C]{\sffamily\small\color{limpacGray}\thepage}
+
+\renewcommand{\arraystretch}{1.35}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% Caixa de fórmula reutilizável
+\newtcolorbox{formulabox}[1][]{
+  colback=limpacLight, colframe=limpacGreen,
+  boxrule=0.8pt, arc=3pt, left=10pt, right=10pt, top=8pt, bottom=8pt,
+  fonttitle=\bfseries\sffamily, #1}
+
+\newtcolorbox{notebox}[1][]{
+  colback=limpacBlueLight, colframe=limpacBlue,
+  boxrule=0.6pt, arc=3pt, left=10pt, right=10pt, top=7pt, bottom=7pt, #1}
+
+% ===============================================================
+\begin{document}
+\sffamily
+
+% -------------------------- Capa -------------------------------
+\begin{titlepage}
+\centering
+\vspace*{2.5cm}
+{\color{limpacGreen}\rule{\linewidth}{2pt}}\\[0.6cm]
+{\Huge\bfseries\color{limpacDark} LimpaC}\\[0.4cm]
+{\LARGE\color{limpacGreen} Bases de Cálculo das Calculadoras de Impacto}\\[0.3cm]
+{\large\color{limpacGray} Documentação técnica dos fatores ambientais e financeiros}\\[0.5cm]
+{\color{limpacGreen}\rule{\linewidth}{2pt}}\\[1.2cm]
+
+\begin{tcolorbox}[colback=limpacLight,colframe=limpacGreen,width=0.85\linewidth,
+   arc=4pt,boxrule=1pt,halign=center]
+\large
+Este documento descreve, de forma prática, \textbf{como cada métrica é calculada},
+quais \textbf{fatores unitários} são usados e quais \textbf{fontes} embasam esses números.
+\end{tcolorbox}
+
+\vfill
+{\color{limpacGray}\large Documento técnico interno}\\[0.2cm]
+{\color{limpacGray} Junho de 2026}
+\end{titlepage}
+
+% -------------------------- Sumário ----------------------------
+\tableofcontents
+\thispagestyle{fancy}
+\vspace{1cm}
+
+% ===============================================================
+\section{Visão geral}
+
+O LimpaC possui \textbf{duas calculadoras} independentes. Ambas seguem o mesmo
+princípio: multiplicar uma \emph{quantidade informada pelo usuário} por um conjunto
+de \emph{fatores unitários} (impacto por unidade evitada).
+
+\begin{center}
+\begin{tabularx}{\linewidth}{>{\bfseries\color{limpacDark}}p{4.2cm} Y}
+\toprule
+Calculadora & O que ela mede \\
+\midrule
+Cartões físicos & Impacto evitado ao substituir \textbf{cartões plásticos (PVC)} por
+alternativas digitais. A entrada é o \textbf{número de cartões} não emitidos. \\
+\addlinespace
+Transações & Impacto evitado ao migrar \textbf{transações físicas} (dinheiro em espécie
++ recibo térmico) para \textbf{transações digitais}. A entrada é o \textbf{volume total}
+de transações e o \textbf{percentual digital}. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{notebox}
+\textbf{Princípio de cálculo (modelo linear).} Todas as métricas são lineares:
+\[
+\text{Impacto} \;=\; \text{Quantidade evitada} \;\times\; \text{Fator unitário}.
+\]
+Os fatores são \emph{configuráveis} no backend
+(\texttt{application.properties}), o que permite ajustar os valores sem alterar
+o código-fonte.
+\end{notebox}
+
+% ===============================================================
+\section{Calculadora de Cartões Físicos}
+
+\subsection{Entrada e modelo}
+
+A única entrada é a quantidade de cartões físicos evitados, $N_{\text{cartões}}$.
+Cada métrica $M$ é obtida por:
+\[
+M \;=\; N_{\text{cartões}} \times f_M
+\]
+onde $f_M$ é o fator unitário da tabela abaixo. O número de árvores é
+\textbf{arredondado para o inteiro mais próximo}; as demais métricas mantêm casas decimais.
+
+\subsection{Fatores unitários (por cartão evitado)}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{Y c c}
+\toprule
+\rowcolor{limpacLight}
+\textbf{Métrica} & \textbf{Fator por cartão} & \textbf{Unidade} \\
+\midrule
+CO\textsubscript{2} evitado          & \num{0.0471}  & kg \\
+Plástico (PVC) evitado               & \num{0.00714} & kg \\
+Árvores preservadas                  & \num{0.0342}  & árvore \\
+Água economizada                     & \num{12.857}  & litros \\
+Energia economizada                  & \num{0.514}   & kWh \\
+Dinheiro economizado                 & \num{2.77}    & R\$ \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Composição do valor financeiro}
+
+O valor economizado por cartão (\textbf{R\$ 2,77}) é a soma de três parcelas,
+calculadas separadamente no backend para facilitar auditoria:
+
+\begin{center}
+\begin{tabularx}{\linewidth}{Y c}
+\toprule
+\rowcolor{limpacLight}
+\textbf{Parcela} & \textbf{Valor (R\$/cartão)} \\
+\midrule
+Material (blank PVC CR80)                  & \num{0.49} \\
+Fabricação / personalização / impressão    & \num{1.58} \\
+Logística / frete (rateado por lote)       & \num{0.70} \\
+\midrule
+\textbf{Total}                             & \textbf{\num{2.77}} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{formulabox}[title=Exemplo prático --- 350 cartões evitados]
+\begin{tabular}{@{}ll@{}}
+CO\textsubscript{2}:    & $350 \times 0{,}0471 = \mathbf{16{,}5}$ kg \\
+Plástico:               & $350 \times 0{,}00714 = \mathbf{2{,}50}$ kg \\
+Árvores:                & $350 \times 0{,}0342 = 11{,}97 \approx \mathbf{12}$ árvores \\
+Água:                   & $350 \times 12{,}857 = \mathbf{4.500}$ L \\
+Energia:                & $350 \times 0{,}514 = \mathbf{179{,}9}$ kWh \\
+Economia:               & $350 \times 2{,}77 = \mathbf{R\$\ 969{,}50}$ \\
+\end{tabular}
+\end{formulabox}
+
+\subsection{Fontes e premissas}
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{Peso / plástico:} um cartão de pagamento PVC pesa em média
+$\approx \SI{5}{g}$; o fator usado ($\approx \SI{7}{g}$) inclui uma margem para
+laminação e acabamento.
+\item \textbf{CO\textsubscript{2}:} a produção de PVC tem GWP de
+$\approx \SI{1.88}{kg\,CO_2/kg}$. O fator de \SI{47}{g/cartão} corresponde ao
+material PVC mais um rateio de frete rodoviário, sendo um valor \emph{conservador}
+frente às estimativas de ciclo de vida completo (150--170 g/cartão).
+\item \textbf{Custo:} blank PVC CR80 em volume gira em torno de
+R\$ 0,49--0,56/un.; cartões personalizados de baixo volume amortizam
+fabricação em torno de R\$ 1,50--2,00/un.
+\end{itemize}
+
+% ===============================================================
+\section{Calculadora de Transações}
+
+\subsection{Entrada e modelo}
+
+A calculadora recebe o \textbf{volume total de transações} ($T$) e o
+\textbf{percentual digital} ($p$, em \%). A partir disso deriva:
+\[
+T_{\text{digital}} = T \times \frac{p}{100}
+\qquad\qquad
+T_{\text{física}} = T - T_{\text{digital}}
+\]
+
+\begin{notebox}
+\textbf{Importante:} o impacto evitado é calculado \textbf{somente sobre as
+transações digitais} ($T_{\text{digital}}$), pois representam aquelas que
+deixaram de usar dinheiro em espécie + recibo térmico.
+\end{notebox}
+
+Cada métrica $M$ segue:
+\[
+M \;=\; T_{\text{digital}} \times f_M
+\]
+
+\subsection{Fatores unitários (por transação digital)}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{Y c c}
+\toprule
+\rowcolor{limpacLight}
+\textbf{Métrica} & \textbf{Fator por transação} & \textbf{Unidade} \\
+\midrule
+CO\textsubscript{2} evitado    & \num{0.007}     & kg \\
+Papel (recibo térmico) evitado & \num{0.0023}    & kg \\
+Água economizada               & \num{0.133}     & litros \\
+Árvores preservadas            & \num{0.0000117} & árvore \\
+Dinheiro economizado           & \num{0.34}      & R\$ \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Composição do valor financeiro}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{Y c}
+\toprule
+\rowcolor{limpacLight}
+\textbf{Parcela} & \textbf{Valor (R\$/transação)} \\
+\midrule
+Recibo térmico (rolo de papel rateado)        & \num{0.06} \\
+Manuseio de numerário (contagem, conferência, & \\
+\quad transporte de valores --- rateado)      & \num{0.28} \\
+\midrule
+\textbf{Total}                                & \textbf{\num{0.34}} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{formulabox}[title={Exemplo prático --- 10.000 transações, 70 por cento digitais}]
+$T_{\text{digital}} = 10.000 \times 0{,}70 = 7.000$ transações digitais.
+\begin{tabular}{@{}ll@{}}
+CO\textsubscript{2}:  & $7.000 \times 0{,}007 = \mathbf{49}$ kg \\
+Papel:                & $7.000 \times 0{,}0023 = \mathbf{16{,}1}$ kg \\
+Água:                 & $7.000 \times 0{,}133 = \mathbf{931}$ L \\
+Árvores:              & $7.000 \times 0{,}0000117 = \mathbf{0{,}08}$ árvore \\
+Economia:             & $7.000 \times 0{,}34 = \mathbf{R\$\ 2.380{,}00}$ \\
+\end{tabular}
+\end{formulabox}
+
+\subsection{Fontes e premissas}
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{CO\textsubscript{2}:} relatório \emph{Skip the Slip}
+(Green America / NRDC): $\approx$ 4 bilhões de libras de CO\textsubscript{2}/ano
+sobre $\approx$ 256 bilhões de recibos nos EUA $\Rightarrow \approx \SI{7}{g/recibo}$.
+\item \textbf{Papel:} um recibo térmico médio pesa 2--3 g $\Rightarrow \SI{0.0023}{kg}$.
+\item \textbf{Água:} $\approx$ 9 bilhões de galões/ano $\div$ 256 bilhões de recibos
+$\Rightarrow \approx \SI{0.13}{L/recibo}$.
+\item \textbf{Árvores:} $\approx$ 3 milhões de árvores/ano $\div$ 256 bilhões de
+recibos $\Rightarrow \approx \num{0.0000117}$ árvore/recibo.
+\item \textbf{Manuseio de numerário:} proxy conservador informado por dados de
+perdas no varejo (Abrappe 2024, $\approx$ 1,51\% da receita líquida), amortizado
+por transação.
+\end{itemize}
+
+% ===============================================================
+\section{Resumo dos fatores}
+
+\begin{center}
+\begin{tabularx}{\linewidth}{Y c c}
+\toprule
+\rowcolor{limpacDark}
+\textbf{\color{white}Fator} & \textbf{\color{white}Cartão} & \textbf{\color{white}Transação} \\
+\midrule
+CO\textsubscript{2} (kg)        & \num{0.0471}  & \num{0.007} \\
+\rowcolor{limpacLight}
+Plástico / Papel (kg)           & \num{0.00714} & \num{0.0023} \\
+Água (L)                        & \num{12.857}  & \num{0.133} \\
+\rowcolor{limpacLight}
+Árvores                         & \num{0.0342}  & \num{0.0000117} \\
+Energia (kWh)                   & \num{0.514}   & --- \\
+\rowcolor{limpacLight}
+Economia (R\$)                  & \num{2.77}    & \num{0.34} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\vspace{0.4cm}
+\begin{notebox}
+\textbf{Onde alterar.} Todos os fatores vivem em
+\texttt{apps/backend/src/main/resources/application.properties}, sob os prefixos
+\texttt{app.metrics.*} (cartões) e \texttt{app.transaction-metrics.*} (transações).
+Os valores financeiros são somados em tempo de execução a partir de suas parcelas.
+\end{notebox}
+
+% ===============================================================
+\section{Fontes}
+
+Referências utilizadas para embasar os fatores unitários. Os valores adotados no
+LimpaC são \emph{proxies conservadores} derivados destas fontes.
+
+\subsection{Cartões físicos (PVC)}
+\begin{enumerate}[leftmargin=1.6em]
+\item Green America --- \emph{Skip the Slip} (programa de referência sobre
+impacto de materiais descartáveis):\\
+\href{https://greenamerica.org/save-trees/skip-slip}{greenamerica.org/save-trees/skip-slip}
+\item Design Life-Cycle --- \emph{Credit/Debit Card} (peso $\approx$ 5 g,
+composição PVC e ciclo de vida):\\
+\href{http://www.designlife-cycle.com/creditdebit-card}{designlife-cycle.com/creditdebit-card}
+\item CleverCards --- \emph{The climate crisis behind plastic cards}
+(150--170 g CO\textsubscript{2}/cartão no ciclo completo):\\
+\href{https://www.clevercards.com/blog/the-climate-crisis-behind-plastic-cards}{clevercards.com/blog/the-climate-crisis-behind-plastic-cards}
+\item ICMA --- \emph{Eco-Friendly Materials in Card Manufacturing}
+(materiais, custos e alternativas recicladas):\\
+\href{https://icma.com/eco-friendly-materials-in-card-manufacturing}{icma.com/eco-friendly-materials-in-card-manufacturing}
+\item GWP do PVC ($\approx \SI{1.88}{kg\,CO_2/kg}$) e custos de blank CR80:
+referências de mercado de impressão de cartões (Perfect Plastic Printing,
+\href{https://perfectplastic.com/carbon-neutral-footprint/}{perfectplastic.com/carbon-neutral-footprint}).
+\end{enumerate}
+
+\subsection{Transações (recibo térmico + numerário)}
+\begin{enumerate}[leftmargin=1.6em]
+\item Green America / NRDC --- \emph{Skip the Slip} report (4 bi lb
+CO\textsubscript{2}, 3 mi árvores, 9 bi galões de água sobre $\approx$ 256 bi
+recibos/ano nos EUA):\\
+\href{https://greenamerica.org/press-release/skip-slip-report-toxic-paper-receipts-jeopardize-health}{greenamerica.org/press-release/skip-slip-report-toxic-paper-receipts}
+\item Climate Action --- \emph{Report: Skip the Slip} (custos ambientais e
+riscos à saúde dos recibos de papel):\\
+\href{https://www.climateaction.org/news/report-skip-the-slip-environmental-costs-human-health-risks-of-paper-receip}{climateaction.org/news/report-skip-the-slip}
+\item Ingenico --- \emph{Why digital receipts could be the perfect first step}
+(estimativa de CO\textsubscript{2} por recibo):\\
+\href{https://ingenico.com/en/newsroom/blogs/sustainability-payments-digital-receipts}{ingenico.com/.../sustainability-payments-digital-receipts}
+\item eyos retail --- \emph{The Environmental Cost of Paper Receipts}
+(peso médio do recibo térmico, 2--3 g):\\
+\href{https://eyos.one/blog/the-environmental-cost-of-paper-receipts/}{eyos.one/blog/the-environmental-cost-of-paper-receipts}
+\item Abrappe --- dados de perdas no varejo 2024 ($\approx$ 1,51\% da receita
+líquida), usados como proxy do custo de manuseio de numerário.
+\end{enumerate}
+
+\begin{notebox}
+\textbf{Nota de calibração.} Onde uma fonte traz faixa ou valor de ciclo de vida
+completo (ex.: 150--170 g CO\textsubscript{2}/cartão), o LimpaC adota a parcela
+\emph{material + logística} (\SI{47}{g}), mais conservadora e auditável. Os
+fatores podem ser recalibrados a qualquer momento em \texttt{application.properties}.
+\end{notebox}
+
+\end{document}
